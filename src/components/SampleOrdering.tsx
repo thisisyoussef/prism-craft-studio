@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, Clock, CheckCircle, Star } from "lucide-react";
+import SampleOrderFlow from "./SampleOrderFlow";
 
 const SampleOrdering = () => {
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
@@ -200,9 +201,7 @@ const SampleOrdering = () => {
                   </div>
                   
                   <div className="space-y-3">
-                    <Button variant="hero" size="lg" className="w-full">
-                      Order Samples
-                    </Button>
+                    <SampleOrderFlow />
                     <Button variant="ghost" size="sm" className="w-full">
                       Add Custom Sample
                     </Button>

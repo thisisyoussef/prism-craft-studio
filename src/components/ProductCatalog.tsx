@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ProductCustomizer from "./ProductCustomizer";
 import { Shirt, ShirtIcon } from "lucide-react";
 
 const products = [
@@ -128,9 +129,7 @@ const ProductCatalog = () => {
                 </div>
                 
                 <div className="space-y-3">
-                  <Button variant="hero" className="w-full">
-                    Get Quote
-                  </Button>
+                  <ProductCustomizer />
                   <Button variant="ghost" className="w-full">
                     View Details
                   </Button>

@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { FileText, Play, Shirt, Leaf, Clock } from "lucide-react";
 import heroImage from "@/assets/hero-manufacturing.jpg";
+import ProductCustomizer from "./ProductCustomizer";
+import SampleOrderFlow from "./SampleOrderFlow";
 
 const HeroSection = () => {
   return (
@@ -17,14 +19,8 @@ const HeroSection = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button variant="hero" size="lg" className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Browse Products
-              </Button>
-              <Button variant="hero-secondary" size="lg" className="flex items-center gap-2">
-                <Play className="w-4 h-4" />
-                Order Samples
-              </Button>
+              <ProductCustomizer />
+              <SampleOrderFlow />
             </div>
             
             <div className="mt-12 flex items-center gap-4">
