@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ProductCustomizer from "./ProductCustomizer";
-import { Shirt, ShirtIcon } from "lucide-react";
+import { useAuthStore } from "@/lib/store";
+import { toast } from "@/hooks/use-toast";
+import AuthDialog from "./AuthDialog";
 
 const products = [
   {
@@ -58,6 +60,7 @@ const products = [
 const categories = ["All", "T-Shirts", "Hoodies", "Polos", "Sweatshirts"];
 
 const ProductCatalog = () => {
+  const { user } = useAuthStore();
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   const filteredProducts = selectedCategory === "All" 
@@ -130,7 +133,16 @@ const ProductCatalog = () => {
                 
                 <div className="space-y-3">
                   <ProductCustomizer />
-                  <Button variant="ghost" className="w-full">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full"
+                    onClick={() => {
+                      toast({
+                        title: "Product Details",
+                        description: `Viewing details for ${product.name}`
+                      });
+                    }}
+                  >
                     View Details
                   </Button>
                 </div>
@@ -149,12 +161,53 @@ const ProductCatalog = () => {
               Work with our design team to create exactly what you need. From pattern development to final production.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="hero" size="lg">
-                Book Designer Consultation
-              </Button>
-              <Button variant="hero-secondary" size="lg">
-                Upload Your Design
-              </Button>
+              {user ? (
+                <>
+                  <Button 
+                    variant="hero" 
+                    size="lg"
+                    onClick={() => {
+                      toast({
+                        title: "Designer Consultation",
+                        description: "Booking system coming soon!"
+                      });
+                    }}
+                  >
+                    Book Designer Consultation
+                  </Button>
+                  <Button 
+                    variant="hero-secondary" 
+                    size="lg"
+                    onClick={() => {
+                      toast({
+                        title: "Design Upload",
+                        description: "Design upload feature coming soon!"
+                      });
+                    }}
+                  >
+                    Upload Your Design
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <AuthDialog
+                    trigger={
+                      <Button variant="hero" size="lg">
+                        Book Designer Consultation
+                      </Button>
+                    }
+                    defaultTab="signup"
+                  />
+                  <AuthDialog
+                    trigger={
+                      <Button variant="hero-secondary" size="lg">
+                        Upload Your Design
+                      </Button>
+                    }
+                    defaultTab="signup"
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>

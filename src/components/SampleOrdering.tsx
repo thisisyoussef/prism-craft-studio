@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, Clock, CheckCircle, Star } from "lucide-react";
 import SampleOrderFlow from "./SampleOrderFlow";
+import { toast } from "@/hooks/use-toast";
 
 const SampleOrdering = () => {
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
@@ -202,7 +203,17 @@ const SampleOrdering = () => {
                   
                   <div className="space-y-3">
                     <SampleOrderFlow />
-                    <Button variant="ghost" size="sm" className="w-full">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        toast({
+                          title: "Custom Sample",
+                          description: "Custom sample feature coming soon!"
+                        });
+                      }}
+                    >
                       Add Custom Sample
                     </Button>
                   </div>

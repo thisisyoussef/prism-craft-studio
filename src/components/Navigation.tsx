@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store";
 import AuthDialog from "./AuthDialog";
 import { LogOut, User } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 const Navigation = () => {
   const { user, signOut, initialize } = useAuthStore();
@@ -66,7 +67,16 @@ const Navigation = () => {
                 <LogOut className="w-4 h-4" />
                 Sign Out
               </Button>
-              <Button variant="hero" size="lg">
+              <Button 
+                variant="hero" 
+                size="lg"
+                onClick={() => {
+                  toast({
+                    title: "Dashboard",
+                    description: "Dashboard feature coming soon!"
+                  });
+                }}
+              >
                 Dashboard
               </Button>
             </div>
