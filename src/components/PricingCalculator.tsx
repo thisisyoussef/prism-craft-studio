@@ -2,19 +2,14 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calculator, TrendingDown, Upload, Palette } from "lucide-react";
-import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
-import AuthDialog from "./AuthDialog";
 
 const PricingCalculator = () => {
-  const { user } = useAuthStore();
   const [quantity, setQuantity] = useState(100);
   const [productType, setProductType] = useState("t-shirt");
   const [customization, setCustomization] = useState("screen-print");
   const [price, setPrice] = useState(0);
   const [savings, setSavings] = useState(0);
-
-  console.log("PricingCalculator: user state:", user ? "logged in" : "not logged in");
 
   const productPrices = {
     "t-shirt": { base: 12.99, name: "Classic T-Shirt" },
@@ -158,7 +153,16 @@ const PricingCalculator = () => {
               </div>
 
               {/* Upload Design */}
-              <div className="border-2 border-dashed border-primary/20 rounded-lg p-6 text-center hover:border-primary/40 transition-colors cursor-pointer">
+              <div 
+                className="border-2 border-dashed border-primary/20 rounded-lg p-6 text-center hover:border-primary/40 transition-colors cursor-pointer"
+                onClick={() => {
+                  console.log("Upload design area clicked");
+                  toast({
+                    title: "Design Upload",
+                    description: "File upload coming soon!"
+                  });
+                }}
+              >
                 <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm font-medium text-foreground mb-1">
                   Upload Your Design
@@ -231,57 +235,35 @@ const PricingCalculator = () => {
             )}
 
             <div className="space-y-3">
-              {user ? (
-                <Button 
-                  variant="hero" 
-                  size="lg" 
-                  className="w-full"
-                  onClick={() => {
-                    console.log("Get Quote button clicked - user logged in");
-                    toast({
-                      title: "Quote Generated!",
-                      description: "Your custom quote is ready. Check your email for details."
-                    });
-                  }}
-                >
-                  Get Official Quote
-                </Button>
-              ) : (
-                <AuthDialog
-                  trigger={
-                    <Button variant="hero" size="lg" className="w-full">
-                      Sign In to Get Quote
-                    </Button>
-                  }
-                  defaultTab="signin"
-                />
-              )}
+              <Button 
+                variant="hero" 
+                size="lg" 
+                className="w-full"
+                onClick={() => {
+                  console.log("Get Quote button clicked");
+                  toast({
+                    title: "Quote Generated!",
+                    description: "Your custom quote is ready. We'll send details to your email."
+                  });
+                }}
+              >
+                Get Official Quote
+              </Button>
               
-              {user ? (
-                <Button 
-                  variant="hero-secondary" 
-                  size="lg" 
-                  className="w-full"
-                  onClick={() => {
-                    console.log("Order Sample button clicked - user logged in");
-                    toast({
-                      title: "Sample Order Placed!",
-                      description: "Your sample order has been placed successfully."
-                    });
-                  }}
-                >
-                  Order Sample First
-                </Button>
-              ) : (
-                <AuthDialog
-                  trigger={
-                    <Button variant="hero-secondary" size="lg" className="w-full">
-                      Sign In to Order Sample
-                    </Button>
-                  }
-                  defaultTab="signup"
-                />
-              )}
+              <Button 
+                variant="hero-secondary" 
+                size="lg" 
+                className="w-full"
+                onClick={() => {
+                  console.log("Order Sample button clicked");
+                  toast({
+                    title: "Sample Order Started!",
+                    description: "Opening sample selection..."
+                  });
+                }}
+              >
+                Order Sample First
+              </Button>
             </div>
 
             <div className="text-center mt-4">

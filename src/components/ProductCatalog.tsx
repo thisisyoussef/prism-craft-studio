@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import ProductCustomizer from "./ProductCustomizer";
-import { useAuthStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
-import AuthDialog from "./AuthDialog";
 
 const products = [
   {
@@ -60,7 +57,6 @@ const products = [
 const categories = ["All", "T-Shirts", "Hoodies", "Polos", "Sweatshirts"];
 
 const ProductCatalog = () => {
-  const { user } = useAuthStore();
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   const filteredProducts = selectedCategory === "All" 
@@ -174,53 +170,32 @@ const ProductCatalog = () => {
               Work with our design team to create exactly what you need. From pattern development to final production.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {user ? (
-                <>
-                  <Button 
-                    variant="hero" 
-                    size="lg"
-                    onClick={() => {
-                      toast({
-                        title: "Designer Consultation",
-                        description: "Booking system coming soon!"
-                      });
-                    }}
-                  >
-                    Book Designer Consultation
-                  </Button>
-                  <Button 
-                    variant="hero-secondary" 
-                    size="lg"
-                    onClick={() => {
-                      toast({
-                        title: "Design Upload",
-                        description: "Design upload feature coming soon!"
-                      });
-                    }}
-                  >
-                    Upload Your Design
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <AuthDialog
-                    trigger={
-                      <Button variant="hero" size="lg">
-                        Book Designer Consultation
-                      </Button>
-                    }
-                    defaultTab="signup"
-                  />
-                  <AuthDialog
-                    trigger={
-                      <Button variant="hero-secondary" size="lg">
-                        Upload Your Design
-                      </Button>
-                    }
-                    defaultTab="signup"
-                  />
-                </>
-              )}
+              <Button 
+                variant="hero" 
+                size="lg"
+                onClick={() => {
+                  console.log("Designer consultation button clicked");
+                  toast({
+                    title: "Designer Consultation",
+                    description: "Connecting you with our design team..."
+                  });
+                }}
+              >
+                Book Designer Consultation
+              </Button>
+              <Button 
+                variant="hero-secondary" 
+                size="lg"
+                onClick={() => {
+                  console.log("Upload design button clicked");
+                  toast({
+                    title: "Design Upload",
+                    description: "Opening file upload..."
+                  });
+                }}
+              >
+                Upload Your Design
+              </Button>
             </div>
           </div>
         </div>
