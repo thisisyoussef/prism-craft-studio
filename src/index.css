@@ -2,56 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Prism Manufacturing Design System - Warm, modern aesthetic */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base colors - warm cream palette */
+    --background: 45 57% 98%; /* #FFFDF9 */
+    --foreground: 0 0% 7%; /* #111111 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Card system */
+    --card: 45 57% 98%; /* #FFFDF9 */
+    --card-foreground: 0 0% 7%;
+    --card-secondary: 36 33% 94%; /* #F5F1EA */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* Popover */
+    --popover: 45 57% 98%;
+    --popover-foreground: 0 0% 7%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - black for CTA buttons */
+    --primary: 0 0% 7%; /* #111111 */
+    --primary-foreground: 45 57% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - warm beige */
+    --secondary: 36 33% 94%; /* #F5F1EA */
+    --secondary-foreground: 0 0% 7%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted text and backgrounds */
+    --muted: 36 33% 94%;
+    --muted-foreground: 0 0% 40%; /* Gray-600 equivalent */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent colors - coral and sky blue */
+    --accent: 36 33% 94%;
+    --accent-foreground: 0 0% 7%;
+    --coral: 8 100% 87%; /* #FFC4BC */
+    --sky: 206 100% 84%; /* #A6D8FF */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status colors */
+    --success: 142 71% 45%;
+    --success-foreground: 45 57% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 45 57% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Borders and inputs */
+    --border: 0 0% 7% / 0.1; /* Black with 10% opacity */
+    --input: 0 0% 7% / 0.1;
+    --ring: 0 0% 7%;
 
-    --radius: 0.5rem;
+    /* Border radius */
+    --radius: 0.75rem; /* Slightly larger for modern feel */
 
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--coral)), hsl(var(--sky)));
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(var(--card-secondary)));
+
+    /* Shadows */
+    --shadow-soft: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.06);
+    --shadow-medium: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -2px hsl(0 0% 0% / 0.05);
+    --shadow-large: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 10px 10px -5px hsl(0 0% 0% / 0.04);
+
+    /* Typography */
+    --font-inter: 'Inter', system-ui, sans-serif;
+
+    /* Sidebar (keeping existing) */
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -101,5 +120,29 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-inter);
+  }
+}
+
+/* Custom utility classes for Prism design */
+@layer utilities {
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .shadow-medium {
+    box-shadow: var(--shadow-medium);
+  }
+  
+  .shadow-large {
+    box-shadow: var(--shadow-large);
+  }
+  
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .gradient-subtle {
+    background: var(--gradient-subtle);
   }
 }
