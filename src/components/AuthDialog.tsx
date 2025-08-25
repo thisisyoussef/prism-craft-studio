@@ -10,6 +10,7 @@ import { Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { signInSchema, signUpSchema, type SignInInput, type SignUpInput } from '@/lib/validation'
+import { serverErrorMessage } from '@/lib/errors'
 
 interface AuthDialogProps {
   trigger?: React.ReactNode
@@ -38,7 +39,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
       setOpen(false)
       signInForm.reset()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to sign in')
+      toast.error(serverErrorMessage(error, 'Failed to sign in'))
     }
   }
 
@@ -49,7 +50,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
       setOpen(false)
       signUpForm.reset()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create account')
+      toast.error(serverErrorMessage(error, 'Failed to create account'))
     }
   }
 

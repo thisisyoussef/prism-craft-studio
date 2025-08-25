@@ -57,14 +57,14 @@ const DesignerBooking = () => {
       title: "Creative Consultation", 
       duration: "60 minutes",
       description: "Collaborate on new design concepts and creative direction",
-      price: "$150",
+      price: "$50",
       features: ["Concept development", "Style direction", "Color recommendations", "Brand alignment"]
     },
     {
       title: "Full Design Service",
       duration: "Project-based",
       description: "Complete design creation from concept to print-ready files",
-      price: "From $500",
+      price: "From $150",
       features: ["Original design creation", "Multiple concepts", "Unlimited revisions", "Print-ready files", "Brand guidelines"]
     }
   ];

@@ -145,63 +145,28 @@ const SampleOrdering = () => {
             </div>
           </div>
 
-          {/* Order Summary */}
+          {/* Order Summary (Inline Flow) */}
           <div className="lg:col-span-1">
             <div className="bg-background rounded-xl p-6 shadow-medium border border-primary/5 sticky top-8">
-              <h3 className="text-xl font-medium text-foreground mb-6">
-                Sample Order
-              </h3>
-              
+              <h3 className="text-xl font-medium text-foreground mb-6">Sample Order</h3>
               {selectedSamples.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Select samples to get started
-                </p>
+                <p className="text-muted-foreground text-center py-8">Select samples to get started</p>
               ) : (
                 <>
-                  <div className="space-y-3 mb-6">
-                    {selectedSamples.map((sampleId) => {
-                      const sample = sampleProducts.find(p => p.id === sampleId);
-                      return sample ? (
-                        <div key={sampleId} className="flex justify-between items-center">
-                          <span className="text-sm text-foreground">{sample.name}</span>
-                          <span className="text-sm font-medium">${sample.price}</span>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                  
-                  <div className="border-t border-primary/10 pt-4 mb-6">
-                    <div className="flex justify-between items-center text-lg font-medium">
-                      <span>Total</span>
-                      <span>${selectedTotal.toFixed(2)}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      + shipping (calculated at checkout)
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <SampleOrderFlow />
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => {
-                        toast({
-                          title: "Custom Sample",
-                          description: "Custom sample feature coming soon!"
-                        });
-                      }}
-                    >
-                      Add Custom Sample
-                    </Button>
-                  </div>
-                  
-                  <div className="bg-coral/10 border border-coral/20 rounded-lg p-3 mt-4">
-                    <p className="text-xs text-foreground">
-                      💡 <strong>Pro tip:</strong> Sample costs are credited toward bulk orders placed within 30 days
-                    </p>
-                  </div>
+                  <SampleOrderFlow mode="inline" selectedSamples={selectedSamples} hideSelection />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={() => {
+                      toast({
+                        title: "Custom Sample",
+                        description: "Custom sample feature coming soon!",
+                      });
+                    }}
+                  >
+                    Add Custom Sample
+                  </Button>
                 </>
               )}
             </div>

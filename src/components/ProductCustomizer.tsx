@@ -18,6 +18,7 @@ import AuthDialog from './AuthDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
 import { supabase } from '@/lib/supabase'
 import { customizerSchema, type CustomizerInput } from '@/lib/validation'
+import { zodErrorMessage } from '@/lib/errors'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { sendGuestDraftEmail } from '../lib/email'
@@ -833,13 +834,20 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             ) : (
               <>
                 <GuestDetailsDialog
-                  trigger={<Button className="w-full" size="lg">Continue as Guest</Button>}
-                  title="Continue as Guest"
-                  description="Save your configuration and receive your quote by email. No account required."
+                  trigger={<Button className="w-full" size="lg">Order as Guest</Button>}
+                  title="Order as Guest"
+                  description="Save your configuration and receive your order quote by email. No account required."
                   onSubmitted={async () => {
-                    const selectedSizes = Object.entries(sizesQty).filter(([, q]) => (q || 0) > 0).map(([s]) => s)
-                    if (!selectedProduct || selectedColors.length === 0 || selectedSizes.length === 0) {
-                      return toast.error('Please complete required selections before continuing as guest')
+                    // Validate configuration before saving guest draft
+                    const validation = customizerSchema.safeParse({
+                      productId: selectedProduct,
+                      selectedColors,
+                      sizesQty,
+                      prints,
+                    })
+                    if (!validation.success) {
+                      toast.error(zodErrorMessage(validation.error))
+                      return
                     }
                     try {
                       const payload = {

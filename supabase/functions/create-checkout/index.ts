@@ -8,6 +8,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
 // Using Stripe via npm specifier (Deno supports npm: imports)
 import Stripe from 'npm:stripe@^14.0.0'
+import { createClient } from 'jsr:@supabase/supabase-js'
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,6 +23,8 @@ Deno.serve(async (req) => {
   try {
     const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY')
     const appUrl = Deno.env.get('VITE_APP_URL')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceKey = Deno.env.get('SERVICE_ROLE_KEY')
 
     if (!stripeSecret) {
       return new Response(JSON.stringify({ error: 'Missing STRIPE_SECRET_KEY' }), {
@@ -32,6 +35,13 @@ Deno.serve(async (req) => {
 
     if (!appUrl) {
       return new Response(JSON.stringify({ error: 'Missing VITE_APP_URL function secret' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (!supabaseUrl || !serviceKey) {
+      return new Response(JSON.stringify({ error: 'Missing Supabase service credentials' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -91,10 +101,28 @@ Deno.serve(async (req) => {
           quantity: 1,
         },
       ],
-      success_url: `${appUrl}/orders/${orderId}?payment=success&phase=${phase}`,
-      cancel_url: `${appUrl}/orders/${orderId}?payment=cancelled&phase=${phase}`,
+      success_url: `${appUrl}/orders/${orderId}?payment=success&phase=${phase}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/orders/${orderId}?payment=cancelled&phase=${phase}&session_id={CHECKOUT_SESSION_ID}`,
       metadata: { orderId, phase },
     })
+
+    // Best-effort: mark payment as processing immediately with session id so UI reflects progress after redirect
+    try {
+      const supabase = createClient(supabaseUrl, serviceKey)
+      await supabase
+        .from('payments')
+        .upsert({
+          order_id: orderId,
+          phase,
+          amount_cents: amountCents,
+          status: 'processing',
+          stripe_checkout_session_id: session.id,
+          currency,
+        }, { onConflict: 'order_id,phase' })
+    } catch (_e) {
+      // non-fatal
+      console.warn('[create-checkout] upsert payments processing failed')
+    }
 
     return new Response(JSON.stringify({ id: session.id, url: session.url }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { useOrderStore, useAuthStore } from '@/lib/store'
 import { supabase } from '@/integrations/supabase/client'
 import toast from 'react-hot-toast'
+import { serverErrorMessage } from '@/lib/errors'
 
 interface PaymentRow {
   phase: 'deposit' | 'balance'
@@ -139,11 +140,13 @@ const OrderDetails = () => {
         .from('production_updates')
         .select('id, stage, status, description, photos, created_at')
         .eq('order_id', order.id)
-        .order('created_at', { ascending: false })
-      if (Array.isArray(updRows)) setUpdates(updRows as any)
+      if (Array.isArray(updRows)) {
+        const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setUpdates(sorted as any)
+      }
       toast.success('Status advanced')
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to advance status')
+      toast.error(serverErrorMessage(e, 'Failed to advance status'))
     }
   }
 
@@ -167,11 +170,13 @@ const OrderDetails = () => {
         .from('production_updates')
         .select('id, stage, status, description, photos, created_at')
         .eq('order_id', order.id)
-        .order('created_at', { ascending: false })
-      if (Array.isArray(updRows)) setUpdates(updRows as any)
+      if (Array.isArray(updRows)) {
+        const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setUpdates(sorted as any)
+      }
       toast.success('Status reverted')
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to revert status')
+      toast.error(serverErrorMessage(e, 'Failed to revert status'))
     }
   }
 
@@ -201,7 +206,7 @@ const OrderDetails = () => {
       setComposer({ stage: order.status, status: 'updated', description: '', files: [] })
       toast.success('Update posted')
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to post update')
+      toast.error(serverErrorMessage(e, 'Failed to post update'))
     }
   }
 
@@ -235,16 +240,18 @@ const OrderDetails = () => {
           .from('production_updates')
           .select('id, stage, status, description, photos, created_at')
           .eq('order_id', id)
-          .order('created_at', { ascending: false })
-        if (!updErr && Array.isArray(updRows)) setUpdates(updRows as any)
+        if (!updErr && Array.isArray(updRows)) {
+          const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          setUpdates(sorted as any)
+        }
 
         // Determine admin/moderator role
         if (user?.id) {
           const { data: profile } = await (supabase as any)
             .from('profiles')
             .select('role')
-            .eq('user_id', user.id)
-            .maybeSingle()
+            .eq('id', user.id)
+            .single()
           const role = (profile as any)?.role
           setIsAdmin(role === 'admin' || role === 'moderator')
         } else {
@@ -252,12 +259,49 @@ const OrderDetails = () => {
         }
       } catch (e: any) {
         console.error(e)
-        toast.error(e?.message || 'Failed to load order')
+        toast.error(serverErrorMessage(e, 'Failed to load order'))
       } finally {
         setLoading(false)
       }
     }
     run()
+  }, [id])
+
+  // Realtime subscriptions: keep payments and order status in sync
+  useEffect(() => {
+    if (!id) return
+
+    const refetchPayments = async () => {
+      const { data: paymentRows } = await (supabase as any)
+        .from('payments')
+        .select('phase, amount_cents, status')
+        .eq('order_id', id)
+      const byPhase: any = { deposit: null, balance: null }
+      ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
+      setPayments(byPhase)
+    }
+    const refetchOrder = async () => {
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('*, products(name, image_url)')
+        .eq('id', id)
+        .single()
+      if (orderData) setOrder(orderData)
+    }
+
+    const channel = (supabase as any)
+      .channel(`order-details-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `order_id=eq.${id}` }, async () => {
+        await refetchPayments()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${id}` }, async () => {
+        await refetchOrder()
+      })
+      .subscribe()
+
+    return () => {
+      try { (supabase as any).removeChannel(channel) } catch {}
+    }
   }, [id])
 
   // On return from Stripe, poll until the indicated phase shows as succeeded.
@@ -266,6 +310,7 @@ const OrderDetails = () => {
     const params = new URLSearchParams(location.search)
     const payment = params.get('payment') // success | cancelled
     const phase = (params.get('phase') as 'deposit' | 'balance' | null)
+    const sessionId = params.get('session_id')
     if (!payment || !phase) return
 
     let cancelled = false
@@ -285,6 +330,18 @@ const OrderDetails = () => {
       }
       toast.success('Payment received. Finalizing your order...')
 
+      // If we have a session id, proactively mark payment as processing so UI doesn't show requires_payment_method
+      if (sessionId) {
+        try {
+          await (supabase as any)
+            .from('payments')
+            .update({ status: 'processing', stripe_checkout_session_id: sessionId })
+            .eq('order_id', id)
+            .eq('phase', phase)
+            .in('status', ['requires_payment_method', 'requires_action'])
+        } catch {}
+      }
+
       const started = Date.now()
       const timeoutMs = 25_000
       const intervalMs = 1_000
@@ -298,6 +355,15 @@ const OrderDetails = () => {
         setPayments(byPhase)
         if (byPhase[phase]?.status === 'succeeded') {
           toast.success(`${phase === 'deposit' ? 'Deposit' : 'Balance'} marked as paid`)
+          // Also refresh order to reflect any status advancement set by webhook
+          try {
+            const { data: orderData } = await supabase
+              .from('orders')
+              .select('*, products(name, image_url)')
+              .eq('id', id)
+              .single()
+            if (orderData) setOrder(orderData)
+          } catch {}
           break
         }
         await new Promise(r => setTimeout(r, intervalMs))
@@ -322,7 +388,6 @@ const OrderDetails = () => {
 
   return (
     <div className="relative min-h-screen bg-background">
-      <div className="absolute inset-0 gradient-subtle opacity-30 pointer-events-none"></div>
       <Navigation />
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-8">
         <h1 className="text-3xl font-medium text-foreground mb-4">Order Details</h1>
@@ -505,24 +570,32 @@ const OrderDetails = () => {
                     <div>Deposit (40%)</div>
                     <div className="text-muted-foreground">{currency(totals.depositCents)}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{payments.deposit?.status || '—'}</span>
-                    <Button size="sm" onClick={() => handlePay('deposit')} disabled={!canPay(payments.deposit)}>
-                      {payments.deposit?.status === 'succeeded' ? 'Paid' : 'Pay Deposit'}
-                    </Button>
-                  </div>
+                  {(() => {
+                    const s = payments.deposit?.status
+                    const disabled = s === 'succeeded' || s === 'processing' || s === 'requires_action'
+                    const label = s === 'succeeded' ? 'Paid' : s === 'processing' ? 'Processing…' : s === 'requires_action' ? 'Confirming…' : 'Pay Deposit'
+                    return (
+                      <Button size="sm" onClick={() => handlePay('deposit')} disabled={disabled}>
+                        {label}
+                      </Button>
+                    )
+                  })()}
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <div>
                     <div>Balance (60%)</div>
                     <div className="text-muted-foreground">{currency(totals.balanceCents)}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{payments.balance?.status || '—'}</span>
-                    <Button size="sm" variant="outline" onClick={() => handlePay('balance')} disabled={!canPay(payments.balance)}>
-                      {payments.balance?.status === 'succeeded' ? 'Paid' : 'Pay Balance'}
-                    </Button>
-                  </div>
+                  {(() => {
+                    const s = payments.balance?.status
+                    const disabled = s === 'succeeded' || s === 'processing' || s === 'requires_action'
+                    const label = s === 'succeeded' ? 'Paid' : s === 'processing' ? 'Processing…' : s === 'requires_action' ? 'Confirming…' : 'Pay Balance'
+                    return (
+                      <Button size="sm" variant="outline" onClick={() => handlePay('balance')} disabled={disabled}>
+                        {label}
+                      </Button>
+                    )
+                  })()}
                 </div>
                 <div className="text-xs text-muted-foreground pt-2 border-t">
                   Total: ${totals.totalDollars.toFixed(2)}

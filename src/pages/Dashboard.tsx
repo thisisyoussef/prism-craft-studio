@@ -21,7 +21,6 @@ const Dashboard = () => {
 
   return (
     <div className="relative min-h-screen bg-background">
-      <div className="absolute inset-0 gradient-subtle opacity-30 pointer-events-none"></div>
       <Navigation />
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-8">
         <h1 className="text-3xl font-medium text-foreground mb-4">Dashboard</h1>
@@ -96,3 +95,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+

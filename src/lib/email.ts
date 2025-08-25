@@ -1,38 +1,28 @@
-// Lightweight Resend wrapper. If RESEND_API_KEY is not present, we noop.
-// You can set RESEND_API_KEY in .env and we will send real emails.
-const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY
+// Lightweight email helper for the browser. Sends via server-side Edge Function to avoid leaking secrets.
+// Actual email sending occurs in `supabase/functions/send-email/` using RESEND_API_KEY stored server-side.
+import { supabase } from '@/integrations/supabase/client'
 const RESEND_FROM = import.meta.env.VITE_RESEND_EMAIL
 
 export async function sendGuestDraftEmail(type: 'quote' | 'sample', to: string | undefined, payload: any) {
   if (!to) return
-  if (!RESEND_API_KEY) {
-    // No API key provided; skip silently but inform in console for dev.
-    console.info('[email] RESEND_API_KEY not set. Skipping email send.', { to, type })
-    return
-  }
-
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
+    const { error } = await supabase.functions.invoke('send-email', {
+      body: { type, to, payload },
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        from: RESEND_FROM ? `PTRN <${RESEND_FROM}>` : 'PTRN <notifications@ptrn.example>',
-        to: [to],
-        subject: type === 'quote' ? 'We received your quote request' : 'We received your sample order request',
-        html: renderGuestDraftHtml(type, payload),
-      })
     })
-
-    if (!res.ok) {
-      const t = await res.text()
-      console.warn('[email] Resend error', t)
-      return
-    }
+    if (error) throw error
   } catch (e) {
-    console.warn('[email] Failed to send email', e)
+    // Log preview to help debug in dev; avoid failing UX if email fails
+    console.warn('[email] Failed to send via Edge Function. Preview below.', e)
+    console.info('[email] preview', {
+      to,
+      type,
+      from: RESEND_FROM ? `PTRN <${RESEND_FROM}>` : 'PTRN <notifications@ptrn.example>',
+      preview: renderGuestDraftHtml(type, payload).slice(0, 2000),
+    })
   }
 }
 

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowLeft, Upload } from "lucide-react";
 
 interface Product {
   id: string;
@@ -52,6 +52,37 @@ const AdminProductEditor = () => {
       return data as Product | null;
     },
     enabled: !!productId,
+  });
+
+  const uploadImage = useMutation({
+    mutationFn: async ({ v, file }: { v: Variant; file: File }) => {
+      // derive path: productId/variantId/filename
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${v.product_id}/${v.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await (supabase as any).storage
+        .from('variant-images')
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+      if (upErr) throw upErr;
+      const { data: pub } = (supabase as any).storage.from('variant-images').getPublicUrl(path);
+      const publicUrl: string | null = pub?.publicUrl || null;
+      // persist on variant
+      await (supabase as any)
+        .from('product_variants')
+        .update({ image_url: publicUrl })
+        .eq('id', v.id);
+      return publicUrl;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["product-variants", productId] });
+      toast({ title: 'Image uploaded', description: 'Variant image updated.' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Upload failed', description: String(err?.message || err), variant: 'destructive' as any });
+    },
   });
 
   const { data: variants, isLoading: loadingVariants } = useQuery<Variant[]>({
@@ -175,7 +206,7 @@ const AdminProductEditor = () => {
                 <TableHead>Preview</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Price Override</TableHead>
-                <TableHead>Image URL</TableHead>
+                <TableHead>Image</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -261,15 +292,31 @@ const AdminProductEditor = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
-                        defaultValue={v.image_url ?? ''}
-                        className="h-8"
-                        placeholder="https://..."
-                        onBlur={(e) => {
-                          const url = e.currentTarget.value.trim() || null;
-                          upsertVariant.mutate({ id: v.id, product_id: v.product_id, image_url: url });
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        {v.image_url ? (
+                          <img src={v.image_url} alt="variant" className="h-8 w-8 rounded object-cover border" />
+                        ) : (
+                          <div className="h-8 w-8 rounded border bg-muted" />
+                        )}
+                        <label className="inline-flex items-center">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.currentTarget.files?.[0];
+                              if (file) uploadImage.mutate({ v, file });
+                              e.currentTarget.value = '';
+                            }}
+                          />
+                          <Button type="button" size="sm" variant="secondary" onClick={(ev) => {
+                            const input = (ev.currentTarget.previousSibling as HTMLInputElement) ?? null;
+                            if (input) input.click();
+                          }} disabled={uploadImage.isPending}>
+                            <Upload className="w-4 h-4 mr-1" /> Upload
+                          </Button>
+                        </label>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Switch

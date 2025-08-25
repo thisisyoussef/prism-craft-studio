@@ -73,3 +73,27 @@ export const customizerSchema = z.object({
 })
 
 export type CustomizerInput = z.infer<typeof customizerSchema>
+
+// Address book schema (user-managed addresses)
+export const addressSchema = z.object({
+  label: z.string().max(80, 'Label is too long').optional().or(z.literal('')),
+  full_name: z.string().max(120, 'Name is too long').optional().or(z.literal('')),
+  company: z.string().max(120, 'Company is too long').optional().or(z.literal('')),
+  phone: z.string().trim().max(30, 'Phone is too long').optional().or(z.literal('')),
+  address1: z.string().min(2, 'Address line 1 is required').max(200, 'Address is too long'),
+  address2: z.string().max(200, 'Address line 2 is too long').optional().or(z.literal('')),
+  city: z.string().min(2, 'City is required').max(80, 'City is too long'),
+  state: z.string().max(80, 'State/Region is too long').optional().or(z.literal('')),
+  postal_code: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9\-\s]*$/, 'ZIP/Postal code contains invalid characters')
+    .max(20, 'ZIP/Postal code is too long')
+    .optional()
+    .or(z.literal('')),
+  country: z.string().min(2, 'Country is required').max(56, 'Country name is too long'),
+  is_default_shipping: z.boolean().optional(),
+  is_default_billing: z.boolean().optional(),
+})
+
+export type AddressInput = z.infer<typeof addressSchema>
