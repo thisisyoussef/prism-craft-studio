@@ -14,16 +14,335 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      companies: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      designer_bookings: {
+        Row: {
+          company_id: string | null
+          consultation_type: string | null
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          notes: string | null
+          preferred_date: string | null
+          status: Database["public"]["Enums"]["booking_status"] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          consultation_type?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          notes?: string | null
+          preferred_date?: string | null
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          consultation_type?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          notes?: string | null
+          preferred_date?: string | null
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "designer_bookings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          artwork_files: string[] | null
+          colors: string[] | null
+          company_id: string | null
+          created_at: string
+          custom_text: string | null
+          customization_details: Json | null
+          id: string
+          notes: string | null
+          order_number: string | null
+          placement: string | null
+          product_id: string | null
+          quantity: number
+          sizes: string[] | null
+          status: Database["public"]["Enums"]["order_status"] | null
+          total_amount: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          artwork_files?: string[] | null
+          colors?: string[] | null
+          company_id?: string | null
+          created_at?: string
+          custom_text?: string | null
+          customization_details?: Json | null
+          id?: string
+          notes?: string | null
+          order_number?: string | null
+          placement?: string | null
+          product_id?: string | null
+          quantity?: number
+          sizes?: string[] | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          artwork_files?: string[] | null
+          colors?: string[] | null
+          company_id?: string | null
+          created_at?: string
+          custom_text?: string | null
+          customization_details?: Json | null
+          id?: string
+          notes?: string | null
+          order_number?: string | null
+          placement?: string | null
+          product_id?: string | null
+          quantity?: number
+          sizes?: string[] | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          available_colors: string[] | null
+          available_sizes: string[] | null
+          base_price: number | null
+          category: string | null
+          created_at: string
+          customization_options: Json | null
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          available_colors?: string[] | null
+          available_sizes?: string[] | null
+          base_price?: number | null
+          category?: string | null
+          created_at?: string
+          customization_options?: Json | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          available_colors?: string[] | null
+          available_sizes?: string[] | null
+          base_price?: number | null
+          category?: string | null
+          created_at?: string
+          customization_options?: Json | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      samples: {
+        Row: {
+          company_id: string | null
+          converted_order_id: string | null
+          created_at: string
+          id: string
+          product_names: string[] | null
+          sample_number: string | null
+          shipping_address: Json | null
+          status: Database["public"]["Enums"]["sample_status"] | null
+          total_amount: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          converted_order_id?: string | null
+          created_at?: string
+          id?: string
+          product_names?: string[] | null
+          sample_number?: string | null
+          shipping_address?: Json | null
+          status?: Database["public"]["Enums"]["sample_status"] | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          converted_order_id?: string | null
+          created_at?: string
+          id?: string
+          product_names?: string[] | null
+          sample_number?: string | null
+          shipping_address?: Json | null
+          status?: Database["public"]["Enums"]["sample_status"] | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "samples_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "samples_converted_order_id_fkey"
+            columns: ["converted_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_order_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_sample_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
+      booking_status: "pending" | "confirmed" | "completed" | "cancelled"
+      order_status:
+        | "draft"
+        | "pending"
+        | "confirmed"
+        | "in_production"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
+      sample_status:
+        | "pending"
+        | "approved"
+        | "shipped"
+        | "delivered"
+        | "converted_to_order"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +469,25 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+      booking_status: ["pending", "confirmed", "completed", "cancelled"],
+      order_status: [
+        "draft",
+        "pending",
+        "confirmed",
+        "in_production",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ],
+      sample_status: [
+        "pending",
+        "approved",
+        "shipped",
+        "delivered",
+        "converted_to_order",
+      ],
+    },
   },
 } as const
