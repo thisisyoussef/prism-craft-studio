@@ -53,9 +53,9 @@ const PricingCalculator = () => {
   const currentDiscount = quantityTiers.find(t => quantity >= t.min && quantity <= t.max)?.discount || 0;
 
   return (
-    <section id="pricing" className="py-24 bg-card-secondary">
+    <section id="pricing" className="py-16 bg-card-secondary">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
             Real-Time Pricing Calculator
           </h2>
@@ -64,7 +64,7 @@ const PricingCalculator = () => {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
           {/* Calculator Form */}
           <div className="bg-background rounded-2xl p-8 shadow-medium border border-primary/5">
             <h3 className="text-xl font-medium text-foreground mb-6 flex items-center gap-2">

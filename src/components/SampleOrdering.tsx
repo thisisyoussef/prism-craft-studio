@@ -77,9 +77,9 @@ const SampleOrdering = () => {
   }, 0);
 
   return (
-    <section id="samples" className="py-24 bg-card-secondary">
+    <section id="samples" className="py-16 bg-card-secondary">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
             Order Samples First
           </h2>
@@ -89,7 +89,7 @@ const SampleOrdering = () => {
         </div>
 
         {/* Sample Benefits */}
-        <div className="grid md:grid-cols-4 gap-6 mb-16">
+        <div className="grid md:grid-cols-4 gap-6 mb-12">
           <div className="text-center p-6 bg-background rounded-xl border border-primary/5">
             <Package className="w-8 h-8 text-primary mx-auto mb-3" />
             <h3 className="font-medium text-foreground mb-2">Quality Guaranteed</h3>
@@ -112,7 +112,7 @@ const SampleOrdering = () => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-12">
+        <div className="grid lg:grid-cols-3 gap-8">
           {/* Sample Selection */}
           <div className="lg:col-span-2">
             <h3 className="text-xl font-medium text-foreground mb-6">
@@ -219,7 +219,7 @@ const SampleOrdering = () => {
         </div>
 
         {/* Customer Testimonials */}
-        <div className="mt-16">
+        <div className="mt-12">
           <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
             What Our Customers Say
           </h3>

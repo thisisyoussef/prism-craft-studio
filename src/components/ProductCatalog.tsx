@@ -65,9 +65,9 @@ const ProductCatalog = () => {
     : products.filter(product => product.category === selectedCategory);
 
   return (
-    <section id="products" className="py-24 bg-background">
+    <section id="products" className="py-16 bg-background">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
             Browse Our Product Catalog
           </h2>
@@ -77,7 +77,7 @@ const ProductCatalog = () => {
         </div>
 
         {/* Category Filter */}
-        <div className="flex flex-wrap justify-center gap-2 mb-12">
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
           {categories.map((category) => (
             <Button
               key={category}
@@ -91,7 +91,7 @@ const ProductCatalog = () => {
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product) => (
             <div
               key={product.id}
@@ -140,7 +140,7 @@ const ProductCatalog = () => {
         </div>
 
         {/* Call to Action */}
-        <div className="text-center mt-16">
+        <div className="text-center mt-12">
           <div className="bg-card-secondary rounded-2xl p-8 border border-primary/5">
             <h3 className="text-2xl font-medium text-foreground mb-4">
               Need Something Custom?

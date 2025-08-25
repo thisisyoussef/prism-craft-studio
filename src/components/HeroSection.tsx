@@ -6,9 +6,9 @@ import SampleOrderFlow from "./SampleOrderFlow";
 
 const HeroSection = () => {
   return (
-    <main className="relative z-10 px-6 pt-12 pb-24 md:pt-24">
+    <main className="relative z-10 px-6 pt-8 pb-16 md:pt-16 md:pb-20">
       <div className="max-w-6xl mx-auto">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Content */}
           <div>
             <h1 className="text-5xl md:text-6xl font-medium tracking-tight leading-[1.1] mb-6 text-foreground">
@@ -23,7 +23,7 @@ const HeroSection = () => {
               <SampleOrderFlow />
             </div>
             
-            <div className="mt-12 flex items-center gap-4">
+            <div className="mt-8 flex items-center gap-4">
               <div className="flex -space-x-2">
                 <img 
                   src="https://images.unsplash.com/photo-1544723795-3fb6469f5b39?q=80&w=80&auto=format&fit=crop" 
