@@ -10,20 +10,20 @@ const HeroSection = () => {
           {/* Left Content */}
           <div>
             <h1 className="text-5xl md:text-6xl font-medium tracking-tight leading-[1.1] mb-6 text-foreground">
-              Custom clothing manufacturing for modern brands
+              Transparent B2B custom apparel with real-time pricing
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-lg">
-              From tech pack to doorstep. Low minimums, premium fabrics, and fully managed production so you can launch faster with confidence.
+              Get instant quotes, track production stages, and work with professional designers. Built for teams ordering 50-500 pieces with complete transparency.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
               <Button variant="hero" size="lg" className="flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                Get a Quote
+                Browse Products
               </Button>
               <Button variant="hero-secondary" size="lg" className="flex items-center gap-2">
                 <Play className="w-4 h-4" />
-                See the Process
+                Order Samples
               </Button>
             </div>
             
@@ -70,16 +70,16 @@ const HeroSection = () => {
                 {/* Feature badges */}
                 <div className="absolute bottom-4 left-4 right-4 grid grid-cols-3 gap-3">
                   <div className="px-3 py-2 bg-background rounded-lg text-xs font-medium text-foreground border border-primary/10 flex items-center gap-2 shadow-soft">
-                    <span className="inline-flex w-2.5 h-2.5 rounded-full bg-success"></span>
-                    MOQ 50+
+                <span className="inline-flex w-2.5 h-2.5 rounded-full bg-success"></span>
+                50+ MOQ
                   </div>
                   <div className="px-3 py-2 bg-background rounded-lg text-xs font-medium text-foreground border border-primary/10 flex items-center gap-2 shadow-soft">
                     <Leaf className="w-3.5 h-3.5" />
                     Organic options
                   </div>
                   <div className="px-3 py-2 bg-background rounded-lg text-xs font-medium text-foreground border border-primary/10 flex items-center gap-2 shadow-soft">
-                    <Clock className="w-3.5 h-3.5" />
-                    2–6 week lead time
+                <Clock className="w-3.5 h-3.5" />
+                7-14 days
                   </div>
                 </div>
               </div>
@@ -87,11 +87,11 @@ const HeroSection = () => {
               {/* Card content */}
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <div className="text-lg font-medium tracking-tight text-foreground">Cut & Sew Program</div>
-                  <div className="px-3 py-1 bg-primary text-primary-foreground text-xs rounded-full">New</div>
+                  <div className="text-lg font-medium tracking-tight text-foreground">Real-Time Pricing</div>
+                  <div className="px-3 py-1 bg-primary text-primary-foreground text-xs rounded-full">Live</div>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Low minimums • Patternmaking • Sampling • Production • QA • Fulfillment
+                  Instant quotes • Designer booking • Production tracking • Two-phase payments
                 </div>
               </div>
             </div>

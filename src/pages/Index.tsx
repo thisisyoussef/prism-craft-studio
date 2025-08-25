@@ -1,6 +1,10 @@
 import Navigation from "@/components/Navigation";
 import HeroSection from "@/components/HeroSection";
 import FeaturesSection from "@/components/FeaturesSection";
+import ProductCatalog from "@/components/ProductCatalog";
+import PricingCalculator from "@/components/PricingCalculator";
+import SampleOrdering from "@/components/SampleOrdering";
+import DesignerBooking from "@/components/DesignerBooking";
 
 const Index = () => {
   return (
@@ -10,6 +14,12 @@ const Index = () => {
       
       <Navigation />
       <HeroSection />
+      
+      {/* Core B2B Platform Features */}
+      <ProductCatalog />
+      <PricingCalculator />
+      <SampleOrdering />
+      <DesignerBooking />
       
       <div className="relative z-10 px-6 max-w-6xl mx-auto">
         <FeaturesSection />

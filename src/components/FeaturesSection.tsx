@@ -31,7 +31,10 @@ const features = [
 
 const FeaturesSection = () => {
   return (
-    <section className="mt-20 border-t border-primary/10 pt-12">
+    <section className="py-20 border-t border-primary/10">
+      <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
+        Complete Production Process
+      </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
         {features.map((feature, index) => {
           const Icon = feature.icon;
@@ -54,7 +57,7 @@ const FeaturesSection = () => {
         })}
       </div>
 
-      <div className="mt-10 flex flex-col sm:flex-row gap-4">
+      <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
         <Button variant="hero" size="lg" className="flex items-center gap-2">
           <Upload className="w-4 h-4" />
           Upload Tech Pack
