@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store";
 import AuthDialog from "./AuthDialog";
-import { LogOut, User, Settings as SettingsIcon, Menu, X } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDollarSign, FlaskConical } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useProfile } from "@/lib/profile";
 
 const Navigation = () => {
@@ -11,6 +11,8 @@ const Navigation = () => {
   const navigate = useNavigate();
   const { data: profile } = useProfile();
   const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname === path;
 
   useEffect(() => {
     console.log("Navigation: Initializing auth...");
@@ -36,25 +38,25 @@ const Navigation = () => {
         <div className="hidden md:flex space-x-8 text-sm font-medium">
           <Link 
             to="/catalog" 
-            className="text-foreground hover:text-muted-foreground transition-colors duration-200"
+            className={`transition-colors duration-200 ${isActive('/catalog') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
           >
             Products
           </Link>
           <Link 
             to="/pricing" 
-            className="text-foreground hover:text-muted-foreground transition-colors duration-200"
+            className={`transition-colors duration-200 ${isActive('/pricing') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
           >
             Pricing
           </Link>
           <Link 
             to="/samples" 
-            className="text-foreground hover:text-muted-foreground transition-colors duration-200"
+            className={`transition-colors duration-200 ${isActive('/samples') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
           >
             Samples
           </Link>
           <Link 
             to="/designers" 
-            className="text-foreground hover:text-muted-foreground transition-colors duration-200"
+            className={`transition-colors duration-200 ${isActive('/designers') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
           >
             Designers
           </Link>
@@ -130,33 +132,33 @@ const Navigation = () => {
       {/* Mobile dropdown panel */}
       {open && (
         <div className="md:hidden">
-          <div className="absolute left-4 right-4 mt-3 rounded-lg border bg-popover text-popover-foreground shadow-lg">
+          <div className="absolute left-4 right-4 mt-3 rounded-lg border bg-popover text-popover-foreground shadow-lg origin-top transition-all duration-200 ease-out animate-in fade-in-0 zoom-in-95">
             <div className="p-2">
               <div className="grid gap-1">
                 <Link
                   to="/catalog"
-                  className="px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/catalog') ? 'bg-accent/60 text-accent-foreground' : ''}`}
                   onClick={() => setOpen(false)}
                 >
                   Products
                 </Link>
                 <Link
                   to="/pricing"
-                  className="px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/pricing') ? 'bg-accent/60 text-accent-foreground' : ''}`}
                   onClick={() => setOpen(false)}
                 >
                   Pricing
                 </Link>
                 <Link
                   to="/samples"
-                  className="px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/samples') ? 'bg-accent/60 text-accent-foreground' : ''}`}
                   onClick={() => setOpen(false)}
                 >
                   Samples
                 </Link>
                 <Link
                   to="/designers"
-                  className="px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/designers') ? 'bg-accent/60 text-accent-foreground' : ''}`}
                   onClick={() => setOpen(false)}
                 >
                   Designers
@@ -225,6 +227,27 @@ const Navigation = () => {
     </nav>
     {/* Spacer to offset fixed nav height */}
     <div className="h-16 md:h-20" aria-hidden="true" />
+    {/* Bottom mobile navigation */}
+    <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+      <div className="grid grid-cols-4">
+        <Link to="/" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Home className="h-5 w-5" />
+          <span>Home</span>
+        </Link>
+        <Link to="/catalog" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/catalog') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Package className="h-5 w-5" />
+          <span>Products</span>
+        </Link>
+        <Link to="/pricing" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/pricing') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <BadgeDollarSign className="h-5 w-5" />
+          <span>Pricing</span>
+        </Link>
+        <Link to="/samples" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/samples') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <FlaskConical className="h-5 w-5" />
+          <span>Samples</span>
+        </Link>
+      </div>
+    </nav>
     </>
   );
 };

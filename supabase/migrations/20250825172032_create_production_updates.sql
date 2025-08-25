@@ -34,6 +34,16 @@ create policy "Admins manage production updates"
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','moderator')))
   with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','moderator')));
 
--- Add table to realtime publication so clients can subscribe
--- (Will no-op if already added)
-alter publication supabase_realtime add table public.production_updates;
+-- Add table to realtime publication so clients can subscribe (idempotent)
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'production_updates'
+  ) then
+    execute 'alter publication supabase_realtime add table public.production_updates';
+  end if;
+end$$;
