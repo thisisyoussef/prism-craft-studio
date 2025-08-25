@@ -5,6 +5,7 @@
 // deno-lint-ignore-file no-explicit-any
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
+import { z } from 'https://deno.land/x/zod@v3.23.8/mod.ts'
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,11 +14,12 @@ export const corsHeaders = {
 
 type EmailType = 'quote' | 'sample'
 
-type SendEmailRequest = {
-  type: EmailType
-  to: string
-  payload: any
-}
+const SendEmailSchema = z.object({
+  type: z.enum(['quote', 'sample']),
+  to: z.string().email('Invalid recipient email'),
+  payload: z.any().optional(),
+})
+type SendEmailRequest = z.infer<typeof SendEmailSchema>
 
 function renderGuestDraftHtml(type: EmailType, payload: any) {
   const intro = type === 'quote' ? 'Thanks for your quote request!' : 'Thanks for your sample order request!'
@@ -57,15 +59,18 @@ Deno.serve(async (req) => {
   let body: SendEmailRequest
   try {
     const raw = await req.text()
-    body = JSON.parse(raw)
-  } catch (_e) {
+    const parsed = SendEmailSchema.safeParse(JSON.parse(raw))
+    if (!parsed.success) {
+      const msg = parsed.error.issues.map(i => i.message).join('\n') || 'Invalid request body'
+      return new Response(JSON.stringify({ error: msg }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    body = parsed.data
+  }
+  catch (_e) {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  const { type, to, payload } = body || ({} as SendEmailRequest)
-  if (!to || (type !== 'quote' && type !== 'sample')) {
-    return new Response(JSON.stringify({ error: 'Missing or invalid fields: to, type' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  }
+  const { type, to, payload } = body
 
   const subject = type === 'quote' ? 'We received your quote request' : 'We received your sample order request'
   const html = renderGuestDraftHtml(type, payload)
@@ -82,11 +87,14 @@ Deno.serve(async (req) => {
 
     if (!res.ok) {
       const t = await res.text()
-      return new Response(JSON.stringify({ error: 'Resend error', detail: t }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      let detail: any
+      try { detail = JSON.parse(t) } catch { detail = t }
+      return new Response(JSON.stringify({ error: 'Email provider error', detail }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     return new Response(JSON.stringify({ sent: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e?.message || 'Failed to send email' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    const msg = typeof e?.message === 'string' && e.message.length < 200 ? e.message : 'Failed to send email'
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })

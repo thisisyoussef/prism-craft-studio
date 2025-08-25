@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { zodErrorMessage } from "@/lib/errors";
 import GarmentMockup, { type GarmentType } from './GarmentMockups'
@@ -134,205 +134,248 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
     });
   };
 
-  const InnerContent = (
-    <div className={className}>
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Sample Selection */}
-        {!hideSelection && (
-          <div className="lg:col-span-2 space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-foreground mb-4">Select Samples</h3>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {sampleProducts.map((sample) => (
-                  <div
-                    key={sample.id}
-                    className={`border rounded-xl p-4 cursor-pointer transition-all duration-200 ${
-                      effectiveSelected.includes(sample.id)
-                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
-                        : 'border-primary/10 hover:border-primary/30'
-                    }`}
-                    onClick={() => toggleSample(sample.id)}
-                  >
-                    <div className="aspect-square rounded-lg overflow-hidden mb-3 bg-background flex items-center justify-center">
-                      {(() => {
-                        const type: GarmentType = (PRODUCT_MAP as any)[sample.id]?.mockupType || 't-shirt';
-                        return (
-                          <div className="w-full h-full p-6">
-                            <GarmentMockup type={type} view="front" color="#ffffff" />
-                          </div>
-                        );
-                      })()}
+  // Build left selection section (only when not hiding selection)
+  const LeftSection = (
+    <div className="lg:col-span-2 space-y-6">
+      <div>
+        <h3 className="text-lg font-medium text-foreground mb-4">Select Samples</h3>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {sampleProducts.map((sample) => (
+            <div
+              key={sample.id}
+              className={`border rounded-xl p-4 cursor-pointer transition-all duration-200 ${
+                effectiveSelected.includes(sample.id)
+                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                  : 'border-primary/10 hover:border-primary/30'
+              }`}
+              onClick={() => toggleSample(sample.id)}
+            >
+              <div className="aspect-square rounded-lg overflow-hidden mb-3 bg-background flex items-center justify-center">
+                {(() => {
+                  const type: GarmentType = (PRODUCT_MAP as any)[sample.id]?.mockupType || 't-shirt';
+                  return (
+                    <div className="w-full h-full p-6">
+                      <GarmentMockup type={type} view="front" color="#ffffff" />
                     </div>
-                    <h4 className="font-medium text-foreground mb-1">{sample.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-2">{sample.description}</p>
-                    <div className="flex items-center justify-between">
-                      <div className="text-lg font-medium text-foreground">${sample.price}</div>
-                      <Badge variant="outline" className="text-xs">{sample.leadTime}</Badge>
-                    </div>
-                    {effectiveSelected.includes(sample.id) && (
-                      <div className="mt-2 flex items-center gap-2 text-primary">
-                        <CheckCircle className="w-4 h-4" />
-                        <span className="text-sm font-medium">Selected</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })()}
               </div>
+              <h4 className="font-medium text-foreground mb-1">{sample.name}</h4>
+              <p className="text-sm text-muted-foreground mb-2">{sample.description}</p>
+              <div className="flex items-center justify-between">
+                <div className="text-lg font-medium text-foreground">${sample.price}</div>
+                <Badge variant="outline" className="text-xs">{sample.leadTime}</Badge>
+              </div>
+              {effectiveSelected.includes(sample.id) && (
+                <div className="mt-2 flex items-center gap-2 text-primary">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Selected</span>
+                </div>
+              )}
             </div>
+          ))}
+        </div>
+      </div>
 
-            {/* Shipping Address */}
-            {effectiveSelected.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-foreground">Shipping Address</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Full Name *</Label>
-                    <Input value={shippingAddress.name} onChange={(e) => handleAddressChange('name', e.target.value)} placeholder="John Doe" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company</Label>
-                    <Input value={shippingAddress.company} onChange={(e) => handleAddressChange('company', e.target.value)} placeholder="Company Name" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Address *</Label>
-                  <Input value={shippingAddress.address} onChange={(e) => handleAddressChange('address', e.target.value)} placeholder="123 Main Street" />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>City *</Label>
-                    <Input value={shippingAddress.city} onChange={(e) => handleAddressChange('city', e.target.value)} placeholder="City" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>State *</Label>
-                    <Input value={shippingAddress.state} onChange={(e) => handleAddressChange('state', e.target.value)} placeholder="CA" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>ZIP Code *</Label>
-                    <Input value={shippingAddress.zip} onChange={(e) => handleAddressChange('zip', e.target.value)} placeholder="90210" />
-                  </div>
-                </div>
-              </div>
-            )}
+      {/* Shipping Address */}
+      {effectiveSelected.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-foreground">Shipping Address</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Full Name *</Label>
+              <Input value={shippingAddress.name} onChange={(e) => handleAddressChange('name', e.target.value)} placeholder="John Doe" />
+            </div>
+            <div className="space-y-2">
+              <Label>Company</Label>
+              <Input value={shippingAddress.company} onChange={(e) => handleAddressChange('company', e.target.value)} placeholder="Company Name" />
+            </div>
           </div>
-        )}
-
-        {/* Order Summary */}
-        <div className="lg:col-span-1">
-          <div className="bg-card-secondary rounded-xl p-6 sticky top-0">
-            <h3 className="text-lg font-medium text-foreground mb-4">Order Summary</h3>
-            {effectiveSelected.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">Select samples to continue</p>
-            ) : (
-              <>
-                <div className="space-y-3 mb-6">
-                  {effectiveSelected.map((sampleId) => {
-                    const sample = sampleProducts.find(p => p.id === sampleId);
-                    return sample ? (
-                      <div key={sampleId} className="flex justify-between items-center">
-                        <span className="text-sm text-foreground">{sample.name}</span>
-                        <span className="text-sm font-medium">${sample.price}</span>
-                      </div>
-                    ) : null;
-                  })}
-                </div>
-                <div className="space-y-2 border-t border-primary/10 pt-4 mb-6">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Subtotal</span>
-                    <span className="text-sm">${selectedTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Shipping</span>
-                    <span className="text-sm">{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-lg font-medium">
-                    <span>Total</span>
-                    <span>${grandTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-                {shippingCost === 0 && (
-                  <div className="bg-success/10 border border-success/20 rounded-lg p-3 mb-4">
-                    <p className="text-xs text-success font-medium">🎉 Free shipping on orders over $50!</p>
-                  </div>
-                )}
-                <div className="space-y-3">
-                  {user ? (
-                    <Button onClick={handlePlaceOrder} disabled={loading || effectiveSelected.length === 0} className="w-full" size="lg">
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Placing Order...
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="w-4 h-4" />
-                          Place Sample Order
-                        </>
-                      )}
-                    </Button>
-                  ) : (
-                    <>
-                      <GuestDetailsDialog
-                        trigger={<Button className="w-full" size="lg">Order as Guest</Button>}
-                        title="Order as Guest"
-                        description="Enter your details to place a sample order as a guest. We'll email your order receipt and tracking updates."
-                        onSubmitted={async () => {
-                          const guestSampleSchema = z.object({
-                            selectedSamples: z.array(z.string()).min(1, 'Select at least one sample'),
-                            address: z.object({
-                              name: z.string().min(1, 'Full name is required'),
-                              address: z.string().min(1, 'Address is required'),
-                              city: z.string().min(1, 'City is required'),
-                              state: z.string().min(1, 'State is required'),
-                              zip: z.string().min(1, 'ZIP code is required'),
-                              country: z.string().min(1, 'Country is required'),
-                              company: z.string().optional(),
-                            })
-                          })
-                          const parsed = guestSampleSchema.safeParse({ selectedSamples: effectiveSelected, address: shippingAddress })
-                          if (!parsed.success) {
-                            toast.error(zodErrorMessage(parsed.error))
-                            return
-                          }
-                          try {
-                            const items = effectiveSelected.map((id) => {
-                              const p = sampleProducts.find(sp => sp.id === id)
-                              return { id, name: p?.name, price: p?.price }
-                            })
-                            const payload = {
-                              type: 'sample',
-                              info: info || {},
-                              address: shippingAddress,
-                              draft: { items },
-                              totals: { subtotal: selectedTotal, shipping: shippingCost, total: grandTotal },
-                              pricing: { selectedSamples: effectiveSelected, shippingAddress },
-                            }
-                            const { error } = await supabase.from('guest_drafts').insert(payload as any)
-                            if (error) throw error
-                            await sendGuestDraftEmail('sample', info?.email, payload)
-                            toast.success('Guest sample order saved. We\'ll follow up via email.')
-                            setOpen(false)
-                            setConfirmOpen(true)
-                          } catch (e: any) {
-                            console.error(e)
-                            toast.error(e?.message || 'Failed to save guest sample')
-                          }
-                        }}
-                      />
-                      <AuthDialog 
-                        trigger={<Button variant="outline" className="w-full" size="lg">Sign In to Order</Button>}
-                        defaultTab="signup"
-                      />
-                    </>
-                  )}
-                </div>
-                <div className="bg-coral/10 border border-coral/20 rounded-lg p-3 mt-4">
-                  <p className="text-xs text-foreground">💡 <strong>Sample Credits:</strong> Cost applied toward bulk orders placed within 30 days</p>
-                </div>
-              </>
-            )}
+          <div className="space-y-2">
+            <Label>Address *</Label>
+            <Input value={shippingAddress.address} onChange={(e) => handleAddressChange('address', e.target.value)} placeholder="123 Main Street" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>City *</Label>
+              <Input value={shippingAddress.city} onChange={(e) => handleAddressChange('city', e.target.value)} placeholder="City" />
+            </div>
+            <div className="space-y-2">
+              <Label>State *</Label>
+              <Input value={shippingAddress.state} onChange={(e) => handleAddressChange('state', e.target.value)} placeholder="CA" />
+            </div>
+            <div className="space-y-2">
+              <Label>ZIP Code *</Label>
+              <Input value={shippingAddress.zip} onChange={(e) => handleAddressChange('zip', e.target.value)} placeholder="90210" />
+            </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+
+  // Build right summary/address section (used in both modes)
+  const RightSection = (
+    <div className="lg:col-span-1">
+      {/* In inline mode, show shipping address form here when samples are selected */}
+      {hideSelection && effectiveSelected.length > 0 && (
+        <div className="bg-card-secondary rounded-xl p-6 mb-6">
+          <h3 className="text-lg font-medium text-foreground mb-4">Shipping Address</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Full Name *</Label>
+              <Input value={shippingAddress.name} onChange={(e) => handleAddressChange('name', e.target.value)} placeholder="John Doe" />
+            </div>
+            <div className="space-y-2">
+              <Label>Company</Label>
+              <Input value={shippingAddress.company} onChange={(e) => handleAddressChange('company', e.target.value)} placeholder="Company Name" />
+            </div>
+          </div>
+          <div className="space-y-2 mt-4">
+            <Label>Address *</Label>
+            <Input value={shippingAddress.address} onChange={(e) => handleAddressChange('address', e.target.value)} placeholder="123 Main Street" />
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <div className="space-y-2">
+              <Label>City *</Label>
+              <Input value={shippingAddress.city} onChange={(e) => handleAddressChange('city', e.target.value)} placeholder="City" />
+            </div>
+            <div className="space-y-2">
+              <Label>State *</Label>
+              <Input value={shippingAddress.state} onChange={(e) => handleAddressChange('state', e.target.value)} placeholder="CA" />
+            </div>
+            <div className="space-y-2">
+              <Label>ZIP Code *</Label>
+              <Input value={shippingAddress.zip} onChange={(e) => handleAddressChange('zip', e.target.value)} placeholder="90210" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-card-secondary rounded-xl p-6 sticky top-0">
+        <h3 className="text-lg font-medium text-foreground mb-4">Order Summary</h3>
+        {effectiveSelected.length === 0 ? (
+          <p className="text-muted-foreground text-center py-8">Select samples to continue</p>
+        ) : (
+          <>
+            <div className="space-y-3 mb-6">
+              {effectiveSelected.map((sampleId) => {
+                const sample = sampleProducts.find(p => p.id === sampleId);
+                return sample ? (
+                  <div key={sampleId} className="flex justify-between items-center">
+                    <span className="text-sm text-foreground">{sample.name}</span>
+                    <span className="text-sm font-medium">${sample.price}</span>
+                  </div>
+                ) : null;
+              })}
+            </div>
+            <div className="space-y-2 border-t border-primary/10 pt-4 mb-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Subtotal</span>
+                <span className="text-sm">${selectedTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Shipping</span>
+                <span className="text-sm">{shippingCost === 0 ? 'Free' : `$${shippingCost.toFixed(2)}`}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg font-medium">
+                <span>Total</span>
+                <span>${grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+            {shippingCost === 0 && (
+              <div className="bg-success/10 border border-success/20 rounded-lg p-3 mb-4">
+                <p className="text-xs text-success font-medium">🎉 Free shipping on orders over $50!</p>
+              </div>
+            )}
+            <div className="space-y-3">
+              {user ? (
+                <Button onClick={handlePlaceOrder} disabled={loading || effectiveSelected.length === 0} className="w-full" size="lg">
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Placing Order...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-4 h-4" />
+                      Place Sample Order
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <>
+                  <GuestDetailsDialog
+                    trigger={<Button className="w-full" size="lg">Order as Guest</Button>}
+                    title="Order as Guest"
+                    description="Enter your details to place a sample order as a guest. We'll email your order receipt and tracking updates."
+                    onSubmitted={async () => {
+                      const guestSampleSchema = z.object({
+                        selectedSamples: z.array(z.string()).min(1, 'Select at least one sample'),
+                        address: z.object({
+                          name: z.string().min(1, 'Full name is required'),
+                          address: z.string().min(1, 'Address is required'),
+                          city: z.string().min(1, 'City is required'),
+                          state: z.string().min(1, 'State is required'),
+                          zip: z.string().min(1, 'ZIP code is required'),
+                          country: z.string().min(1, 'Country is required'),
+                          company: z.string().optional(),
+                        })
+                      })
+                      const parsed = guestSampleSchema.safeParse({ selectedSamples: effectiveSelected, address: shippingAddress })
+                      if (!parsed.success) {
+                        toast.error(zodErrorMessage(parsed.error))
+                        return
+                      }
+                      try {
+                        const items = effectiveSelected.map((id) => {
+                          const p = sampleProducts.find(sp => sp.id === id)
+                          return { id, name: p?.name, price: p?.price }
+                        })
+                        const payload = {
+                          type: 'sample',
+                          info: info || {},
+                          address: shippingAddress,
+                          draft: { items },
+                          totals: { subtotal: selectedTotal, shipping: shippingCost, total: grandTotal },
+                          pricing: { selectedSamples: effectiveSelected, shippingAddress },
+                        }
+                        const { error } = await supabase.from('guest_drafts').insert(payload as any)
+                        if (error) throw error
+                        await sendGuestDraftEmail('sample', info?.email, payload)
+                        toast.success('Guest sample order saved. We\'ll follow up via email.')
+                        setOpen(false)
+                        setConfirmOpen(true)
+                      } catch (e: any) {
+                        console.error(e)
+                        toast.error(e?.message || 'Failed to save guest sample')
+                      }
+                    }}
+                  />
+                  <AuthDialog 
+                    trigger={<Button variant="outline" className="w-full" size="lg">Sign In to Order</Button>}
+                    defaultTab="signup"
+                  />
+                </>
+              )}
+            </div>
+            <div className="bg-coral/10 border border-coral/20 rounded-lg p-3 mt-4">
+              <p className="text-xs text-foreground">💡 <strong>Sample Credits:</strong> Cost applied toward bulk orders placed within 30 days</p>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  // Compose inner content depending on selection visibility
+  const InnerContent = hideSelection ? (
+    <div className={className}>{RightSection}</div>
+  ) : (
+    <div className={className}>
+      <div className="grid lg:grid-cols-3 gap-8">
+        {LeftSection}
+        {RightSection}
       </div>
     </div>
   );

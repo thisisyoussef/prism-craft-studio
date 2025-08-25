@@ -251,7 +251,7 @@ const OrderDetails = () => {
             .from('profiles')
             .select('role')
             .eq('id', user.id)
-            .single()
+            .maybeSingle()
           const role = (profile as any)?.role
           setIsAdmin(role === 'admin' || role === 'moderator')
         } else {
@@ -343,7 +343,7 @@ const OrderDetails = () => {
       }
 
       const started = Date.now()
-      const timeoutMs = 25_000
+      const timeoutMs = 60_000
       const intervalMs = 1_000
       while (!cancelled && Date.now() - started < timeoutMs) {
         const { data: paymentRows } = await (supabase as any)

@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
+import { serverErrorMessage } from "@/lib/errors";
 
 interface ProductRow {
   id: string;
@@ -99,6 +101,16 @@ export default function AdminInventory() {
   const updateOptions = useMutation({
     mutationFn: async (args: { productId: string; patch: Record<string, any> }) => {
       const { productId, patch } = args;
+      // Validate incoming patch to avoid bad writes
+      const OptionPatchSchema = z.object({
+        sku: z.string().trim().min(1, 'SKU is required').max(64).optional(),
+        stock: z.number().int().min(0).optional(),
+        active: z.boolean().optional(),
+      })
+      const parsed = OptionPatchSchema.safeParse(patch)
+      if (!parsed.success) {
+        throw new Error(parsed.error.issues.map(i => i.message).join('\n'))
+      }
       // Fetch existing options to merge on server
       const { data: existing, error: fetchErr } = await supabase
         .from("products")
@@ -123,7 +135,7 @@ export default function AdminInventory() {
       toast({ title: "Saved", description: "Inventory updated successfully." });
     },
     onError: (err: any) => {
-      toast({ title: "Save failed", description: String(err?.message || err), variant: "destructive" as any });
+      toast({ title: "Save failed", description: serverErrorMessage(err, 'Unable to save changes'), variant: "destructive" as any });
     }
   });
 
