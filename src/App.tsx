@@ -6,6 +6,16 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster as HotToaster } from 'react-hot-toast';
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import Catalog from "./pages/Catalog";
+import Pricing from "./pages/Pricing";
+import Samples from "./pages/Samples";
+import Designers from "./pages/Designers";
+import Customize from "./pages/Customize";
+import Dashboard from "./pages/Dashboard";
+import OrderDetails from "./pages/OrderDetails";
+import AdminInventory from "./pages/AdminInventory";
+import AdminProductEditor from "./pages/AdminProductEditor";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +28,16 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/catalog" element={<Catalog />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/samples" element={<Samples />} />
+          <Route path="/designers" element={<Designers />} />
+          <Route path="/customize" element={<Customize />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/orders/:id" element={<OrderDetails />} />
+          <Route path="/admin/inventory" element={<AdminInventory />} />
+          <Route path="/admin/inventory/:productId" element={<AdminProductEditor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -27,3 +47,5 @@ const App = () => (
 );
 
 export default App;
+
+

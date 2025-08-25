@@ -9,12 +9,12 @@ const Index = () => {
   return (
     <div className="relative min-h-screen bg-background">
       {/* Subtle gradient background */}
-      <div className="absolute inset-0 gradient-subtle opacity-30"></div>
+      <div className="absolute inset-0 gradient-subtle opacity-30 pointer-events-none"></div>
       
       <Navigation />
       <HeroSection />
       
-      {/* Core B2B Platform Features */}
+      {/* Core Platform Features for Organizations & Businesses */}
       <ProductCatalog />
       <PricingCalculator />
       <SampleOrdering />

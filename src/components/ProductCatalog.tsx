@@ -1,63 +1,89 @@
 import { useState } from "react";
+import GarmentMockup, { type GarmentType } from './GarmentMockups'
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const products = [
   {
     id: 1,
-    name: "Premium Hoodies",
-    category: "Hoodies",
-    basePrice: 24.99,
-    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop",
-    materials: ["Cotton Blend", "Organic Cotton", "Polyester"],
-    colors: ["Black", "White", "Gray", "Navy", "Red"],
-    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
-    moq: 50,
-    description: "Premium quality hoodies perfect for corporate merchandise and team wear."
-  },
-  {
-    id: 2,
     name: "Classic T-Shirts",
     category: "T-Shirts",
-    basePrice: 12.99,
+    basePrice: 13.0,
     image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=400&auto=format&fit=crop",
     materials: ["100% Cotton", "Cotton Blend", "Tri-Blend"],
     colors: ["Black", "White", "Gray", "Navy", "Red", "Blue", "Green"],
     sizes: ["XS", "S", "M", "L", "XL", "XXL"],
     moq: 50,
-    description: "High-quality cotton tees ideal for events, promotions, and team uniforms."
+    description: "High-quality cotton tees ideal for events, promotions, and team uniforms. Shipping included."
+  },
+  {
+    id: 2,
+    name: "Long Sleeve Shirt",
+    category: "Long Sleeve",
+    basePrice: 15.5,
+    image: "https://images.unsplash.com/photo-1520975922284-9d8de22c6a67?q=80&w=400&auto=format&fit=crop",
+    materials: ["100% Cotton", "Cotton Blend"],
+    colors: ["Black", "White", "Gray", "Navy"],
+    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
+    moq: 50,
+    description: "Versatile long sleeve shirts for teams and events. Shipping included."
   },
   {
     id: 3,
-    name: "Performance Polos",
-    category: "Polos",
-    basePrice: 18.99,
-    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?q=80&w=400&auto=format&fit=crop",
-    materials: ["Moisture-Wicking", "Cotton Blend", "Performance Poly"],
-    colors: ["Black", "White", "Navy", "Gray", "Royal Blue"],
+    name: "Cotton Crewneck",
+    category: "Crewnecks",
+    basePrice: 17.5,
+    image: "https://images.unsplash.com/photo-1548804915-9c7b41b4a2d0?q=80&w=400&auto=format&fit=crop",
+    materials: ["Cotton Fleece", "Organic Cotton"],
+    colors: ["Black", "White", "Gray", "Navy"],
     sizes: ["XS", "S", "M", "L", "XL", "XXL"],
     moq: 50,
-    description: "Professional polo shirts with moisture-wicking technology."
+    description: "Comfortable cotton crewneck with a clean fit. Shipping included."
   },
   {
     id: 4,
-    name: "Crew Sweatshirts",
-    category: "Sweatshirts",
-    basePrice: 22.99,
-    image: "https://images.unsplash.com/photo-1548804915-9c7b41b4a2d0?q=80&w=400&auto=format&fit=crop",
-    materials: ["Cotton Fleece", "Organic Cotton", "Recycled Poly"],
+    name: "Fleece Crewneck",
+    category: "Crewnecks",
+    basePrice: 19.0,
+    image: "https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&w=400&auto=format&fit=crop",
+    materials: ["Cotton Fleece", "Recycled Poly"],
     colors: ["Black", "White", "Gray", "Navy", "Maroon"],
     sizes: ["XS", "S", "M", "L", "XL", "XXL"],
     moq: 50,
-    description: "Comfortable crew neck sweatshirts for casual corporate wear."
+    description: "Cozy fleece crewneck for everyday wear. Shipping included."
+  },
+  {
+    id: 5,
+    name: "Hoodie",
+    category: "Hoodies",
+    basePrice: 24.0,
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=400&auto=format&fit=crop",
+    materials: ["Cotton Blend", "Organic Cotton", "Polyester"],
+    colors: ["Black", "White", "Gray", "Navy", "Red"],
+    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
+    moq: 50,
+    description: "Premium quality hoodie perfect for merchandise and team wear. Shipping included."
+  },
+  {
+    id: 6,
+    name: "Modest Hoodie",
+    category: "Hoodies",
+    basePrice: 22.5,
+    image: "https://images.unsplash.com/photo-1618354691373-d851cba60d5a?q=80&w=400&auto=format&fit=crop",
+    materials: ["Cotton Blend", "Organic Cotton"],
+    colors: ["Black", "White", "Gray", "Navy"],
+    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
+    moq: 50,
+    description: "Relaxed, modest-fit hoodie for all-day comfort. Shipping included."
   }
 ];
 
-const categories = ["All", "T-Shirts", "Hoodies", "Polos", "Sweatshirts"];
+const categories = ["All", "T-Shirts", "Long Sleeve", "Crewnecks", "Hoodies"];
 
 const ProductCatalog = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const navigate = useNavigate();
 
   const filteredProducts = selectedCategory === "All" 
     ? products 
@@ -96,12 +122,21 @@ const ProductCatalog = () => {
               key={product.id}
               className="bg-card rounded-2xl overflow-hidden shadow-soft border border-primary/5 hover:shadow-medium transition-all duration-200 group"
             >
-              <div className="aspect-square relative overflow-hidden">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+              <div className="aspect-square relative overflow-hidden flex items-center justify-center bg-background">
+                {(() => {
+                  const map: Record<string, GarmentType> = {
+                    'T-Shirts': 't-shirt',
+                    'Long Sleeve': 't-shirt',
+                    'Crewnecks': 'sweatshirt',
+                    'Hoodies': 'hoodie',
+                  }
+                  const type: GarmentType = map[product.category] || 't-shirt'
+                  return (
+                    <div className="w-full h-full p-6">
+                      <GarmentMockup type={type} view="front" color="#ffffff" />
+                    </div>
+                  )
+                })()}
                 <div className="absolute top-3 right-3">
                   <Badge variant="secondary" className="bg-background/90 backdrop-blur-sm">
                     MOQ {product.moq}+
@@ -120,7 +155,7 @@ const ProductCatalog = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-2xl font-medium text-foreground">
                     ${product.basePrice}
-                    <span className="text-sm text-muted-foreground font-normal">/piece</span>
+                    <span className="text-sm text-muted-foreground font-normal">/piece • shipping included</span>
                   </div>
                   <Badge variant="outline" className="text-xs">
                     {product.colors.length} colors
@@ -131,26 +166,14 @@ const ProductCatalog = () => {
                   <Button 
                     variant="hero" 
                     className="w-full"
-                    onClick={() => {
-                      console.log("Customize Product button clicked");
-                      toast({
-                        title: "Product Customizer",
-                        description: "Opening customization options..."
-                      });
-                    }}
+                    onClick={() => navigate('/customize')}
                   >
                     Customize Product
                   </Button>
                   <Button 
                     variant="ghost" 
                     className="w-full"
-                    onClick={() => {
-                      console.log("View Details button clicked");
-                      toast({
-                        title: "Product Details",
-                        description: `Viewing details for ${product.name}`
-                      });
-                    }}
+                    onClick={() => navigate('/catalog')}
                   >
                     View Details
                   </Button>
@@ -173,26 +196,14 @@ const ProductCatalog = () => {
               <Button 
                 variant="hero" 
                 size="lg"
-                onClick={() => {
-                  console.log("Designer consultation button clicked");
-                  toast({
-                    title: "Designer Consultation",
-                    description: "Connecting you with our design team..."
-                  });
-                }}
+                onClick={() => navigate('/designers')}
               >
                 Book Designer Consultation
               </Button>
               <Button 
                 variant="hero-secondary" 
                 size="lg"
-                onClick={() => {
-                  console.log("Upload design button clicked");
-                  toast({
-                    title: "Design Upload",
-                    description: "Opening file upload..."
-                  });
-                }}
+                onClick={() => navigate('/customize')}
               >
                 Upload Your Design
               </Button>

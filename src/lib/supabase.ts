@@ -1,9 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://your-project.supabase.co'
-const supabaseAnonKey = 'your-anon-key'
+// Vite exposes only VITE_* at runtime in the browser
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Please configure your .env file.')
+}
+
+export const supabase = createClient(supabaseUrl as string, supabaseAnonKey as string)
 
 export type Database = {
   public: {

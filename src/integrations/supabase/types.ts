@@ -44,6 +44,119 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          order_id: string
+          phase: Database["public"]["Enums"]["payment_phase"]
+          amount_cents: number
+          currency: string
+          status: Database["public"]["Enums"]["payment_status"]
+          paid_at: string | null
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          stripe_charge_id: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          order_id: string
+          phase: Database["public"]["Enums"]["payment_phase"]
+          amount_cents: number
+          currency?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          paid_at?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_charge_id?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          order_id?: string
+          phase?: Database["public"]["Enums"]["payment_phase"]
+          amount_cents?: number
+          currency?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          paid_at?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_charge_id?: string | null
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      addresses: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          user_id: string
+          label: string | null
+          full_name: string | null
+          company: string | null
+          phone: string | null
+          address1: string
+          address2: string | null
+          city: string
+          state: string | null
+          postal_code: string | null
+          country: string
+          is_default_shipping: boolean
+          is_default_billing: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id: string
+          label?: string | null
+          full_name?: string | null
+          company?: string | null
+          phone?: string | null
+          address1: string
+          address2?: string | null
+          city: string
+          state?: string | null
+          postal_code?: string | null
+          country?: string
+          is_default_shipping?: boolean
+          is_default_billing?: boolean
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+          label?: string | null
+          full_name?: string | null
+          company?: string | null
+          phone?: string | null
+          address1?: string
+          address2?: string | null
+          city?: string
+          state?: string | null
+          postal_code?: string | null
+          country?: string
+          is_default_shipping?: boolean
+          is_default_billing?: boolean
+        }
+        Relationships: []
+      }
       designer_bookings: {
         Row: {
           company_id: string | null
@@ -343,6 +456,16 @@ export type Database = {
         | "shipped"
         | "delivered"
         | "converted_to_order"
+      payment_status:
+        | "requires_payment_method"
+        | "requires_action"
+        | "processing"
+        | "succeeded"
+        | "canceled"
+        | "failed"
+        | "refunded"
+        | "partially_refunded"
+      payment_phase: "deposit" | "balance"
     }
     CompositeTypes: {
       [_ in never]: never

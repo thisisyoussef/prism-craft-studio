@@ -12,15 +12,21 @@ const HeroSection = () => {
           {/* Left Content */}
           <div>
             <h1 className="text-5xl md:text-6xl font-medium tracking-tight leading-[1.1] mb-6 text-foreground">
-              Transparent B2B custom apparel with real-time pricing
+              Modest PTRNs, transparent pricing, and fast production
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-lg">
-              Get instant quotes, track production stages, and work with professional designers. Built for teams ordering 50-500 pieces with complete transparency.
+              Create for your community
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
               <ProductCustomizer />
               <SampleOrderFlow />
+            </div>
+            
+            <div className="mt-4">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary text-primary-foreground">
+                Flat base price — shipping + edits included
+              </span>
             </div>
             
             <div className="mt-8 flex items-center gap-4">

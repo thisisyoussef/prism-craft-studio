@@ -1,12 +1,15 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuthStore } from '@/lib/store'
 import { Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { signInSchema, signUpSchema, type SignInInput, type SignUpInput } from '@/lib/validation'
 
 interface AuthDialogProps {
   trigger?: React.ReactNode
@@ -15,39 +18,39 @@ interface AuthDialogProps {
 
 const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
   const [open, setOpen] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [companyName, setCompanyName] = useState('')
   const { signIn, signUp, loading } = useAuthStore()
+  const signInForm = useForm<SignInInput>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: '', password: '' },
+    mode: 'onSubmit',
+  })
 
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const signUpForm = useForm<SignUpInput>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: { companyName: '', email: '', password: '' },
+    mode: 'onSubmit',
+  })
+
+  const handleSignIn = async (values: SignInInput) => {
     try {
-      await signIn(email, password)
+      await signIn(values.email, values.password)
       toast.success('Welcome back!')
       setOpen(false)
-      resetForm()
+      signInForm.reset()
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in')
     }
   }
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSignUp = async (values: SignUpInput) => {
     try {
-      await signUp(email, password, companyName)
+      await signUp(values.email, values.password, values.companyName)
       toast.success('Account created! Please check your email to verify.')
       setOpen(false)
-      resetForm()
+      signUpForm.reset()
     } catch (error: any) {
       toast.error(error.message || 'Failed to create account')
     }
-  }
-
-  const resetForm = () => {
-    setEmail('')
-    setPassword('')
-    setCompanyName('')
   }
 
   return (
@@ -59,7 +62,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
         <DialogHeader>
           <DialogTitle>Welcome to PTRN</DialogTitle>
           <DialogDescription>
-            Sign in to your B2B account or create a new one to get started.
+            Sign in to your account or create a new one to get started for your organization or business.
           </DialogDescription>
         </DialogHeader>
 
@@ -70,75 +73,90 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
           </TabsList>
 
           <TabsContent value="signin" className="space-y-4">
-            <form onSubmit={handleSignIn} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
-                <Input
-                  id="signin-email"
-                  type="email"
-                  placeholder="company@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+            <Form {...signInForm}>
+              <form onSubmit={signInForm.handleSubmit(handleSignIn)} className="space-y-4">
+                <FormField
+                  control={signInForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input id="signin-email" type="email" placeholder="company@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signin-password">Password</Label>
-                <Input
-                  id="signin-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                <FormField
+                  control={signInForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input id="signin-password" type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign In
-              </Button>
-            </form>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In
+                </Button>
+              </form>
+            </Form>
           </TabsContent>
 
           <TabsContent value="signup" className="space-y-4">
-            <form onSubmit={handleSignUp} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="company-name">Company Name</Label>
-                <Input
-                  id="company-name"
-                  placeholder="Your Company Inc."
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
+            <Form {...signUpForm}>
+              <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
+                <FormField
+                  control={signUpForm.control}
+                  name="companyName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company Name</FormLabel>
+                      <FormControl>
+                        <Input id="company-name" placeholder="Your Company Inc." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Business Email</Label>
-                <Input
-                  id="signup-email"
-                  type="email"
-                  placeholder="admin@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                <FormField
+                  control={signUpForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Business Email</FormLabel>
+                      <FormControl>
+                        <Input id="signup-email" type="email" placeholder="admin@company.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <Input
-                  id="signup-password"
-                  type="password"
-                  placeholder="8+ characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
+                <FormField
+                  control={signUpForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input id="signup-password" type="password" placeholder="8+ characters" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Account
-              </Button>
-            </form>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Account
+                </Button>
+              </form>
+            </Form>
           </TabsContent>
         </Tabs>
 

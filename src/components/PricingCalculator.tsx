@@ -1,28 +1,34 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calculator, TrendingDown, Upload, Palette } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
+import { usePricingStore } from "@/lib/store";
+import { PRODUCT_CATALOG } from "@/lib/products";
 
 const PricingCalculator = () => {
-  const [quantity, setQuantity] = useState(100);
-  const [productType, setProductType] = useState("t-shirt");
-  const [customization, setCustomization] = useState("screen-print");
-  const [price, setPrice] = useState(0);
-  const [savings, setSavings] = useState(0);
+  const navigate = useNavigate();
+  const {
+    quantity,
+    productType,
+    customization,
+    price,
+    savings,
+    priceBreakdown,
+    updateQuantity,
+    updateProductType,
+    updateCustomization,
+  } = usePricingStore();
 
-  const productPrices = {
-    "t-shirt": { base: 12.99, name: "Classic T-Shirt" },
-    "hoodie": { base: 24.99, name: "Premium Hoodie" },
-    "polo": { base: 18.99, name: "Performance Polo" },
-    "sweatshirt": { base: 22.99, name: "Crew Sweatshirt" }
-  };
+  const productPrices = Object.fromEntries(
+    PRODUCT_CATALOG.map(p => [p.id, { base: p.basePrice, name: p.name }])
+  ) as Record<string, { base: number; name: string }>;
 
   const customizationPrices = {
-    "screen-print": { cost: 3.99, name: "Screen Printing" },
-    "embroidery": { cost: 5.99, name: "Embroidery" },
-    "vinyl": { cost: 2.99, name: "Vinyl Transfer" },
-    "dtg": { cost: 4.99, name: "Direct-to-Garment" }
+    "screen-print": { cost: 0, name: "Screen Printing" },
+    "embroidery": { cost: 0, name: "Embroidery" },
+    "vinyl": { cost: 0, name: "Vinyl Transfer" },
+    "dtg": { cost: 0, name: "Direct-to-Garment" }
   };
 
   const quantityTiers = [
@@ -33,22 +39,7 @@ const PricingCalculator = () => {
     { min: 1000, max: Infinity, discount: 0.20 }
   ];
 
-  useEffect(() => {
-    const basePrice = productPrices[productType as keyof typeof productPrices].base;
-    const customizationCost = customizationPrices[customization as keyof typeof customizationPrices].cost;
-    
-    const tier = quantityTiers.find(t => quantity >= t.min && quantity <= t.max);
-    const discount = tier?.discount || 0;
-    
-    const unitPrice = (basePrice + customizationCost) * (1 - discount);
-    const totalPrice = unitPrice * quantity;
-    
-    const originalPrice = (basePrice + customizationCost) * quantity;
-    const currentSavings = originalPrice - totalPrice;
-    
-    setPrice(totalPrice);
-    setSavings(currentSavings);
-  }, [quantity, productType, customization]);
+  // pricing is computed in the store when updates occur
 
   const nextTier = quantityTiers.find(t => quantity < t.min);
   const currentDiscount = quantityTiers.find(t => quantity >= t.min && quantity <= t.max)?.discount || 0;
@@ -61,7 +52,7 @@ const PricingCalculator = () => {
             Real-Time Pricing Calculator
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Get instant, transparent pricing with no hidden fees. See exactly what you'll pay before placing your order.
+            Instant, transparent pricing for organizations and businesses. Shipping included and edits never add to the cost.
           </p>
         </div>
 
@@ -83,7 +74,7 @@ const PricingCalculator = () => {
                   {Object.entries(productPrices).map(([key, product]) => (
                     <button
                       key={key}
-                      onClick={() => setProductType(key)}
+                      onClick={() => updateProductType(key)}
                       className={`p-3 rounded-lg border text-sm font-medium transition-all duration-200 ${
                         productType === key
                           ? "border-primary bg-primary text-primary-foreground"
@@ -107,7 +98,7 @@ const PricingCalculator = () => {
                     min="50"
                     max="10000"
                     value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 50)}
+                    onChange={(e) => updateQuantity(parseInt(e.target.value) || 50)}
                     className="w-full p-3 border border-primary/20 rounded-lg focus:border-primary focus:outline-none text-lg font-medium"
                   />
                   <div className="absolute right-3 top-3 text-sm text-muted-foreground">
@@ -118,7 +109,7 @@ const PricingCalculator = () => {
                   {[50, 100, 250, 500, 1000].map((qty) => (
                     <button
                       key={qty}
-                      onClick={() => setQuantity(qty)}
+                      onClick={() => updateQuantity(qty)}
                       className="px-3 py-1 text-xs border border-primary/20 rounded-full hover:border-primary/40 transition-colors"
                     >
                       {qty}
@@ -136,7 +127,7 @@ const PricingCalculator = () => {
                   {Object.entries(customizationPrices).map(([key, method]) => (
                     <button
                       key={key}
-                      onClick={() => setCustomization(key)}
+                      onClick={() => updateCustomization(key)}
                       className={`p-3 rounded-lg border text-sm font-medium transition-all duration-200 flex items-center justify-between ${
                         customization === key
                           ? "border-primary bg-primary/5 text-foreground"
@@ -144,9 +135,7 @@ const PricingCalculator = () => {
                       }`}
                     >
                       <span>{method.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        +${method.cost}/piece
-                      </span>
+                      <span className="text-xs text-success">Included</span>
                     </button>
                   ))}
                 </div>
@@ -155,13 +144,7 @@ const PricingCalculator = () => {
               {/* Upload Design */}
               <div 
                 className="border-2 border-dashed border-primary/20 rounded-lg p-6 text-center hover:border-primary/40 transition-colors cursor-pointer"
-                onClick={() => {
-                  console.log("Upload design area clicked");
-                  toast({
-                    title: "Design Upload",
-                    description: "File upload coming soon!"
-                  });
-                }}
+                onClick={() => navigate('/customize')}
               >
                 <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm font-medium text-foreground mb-1">
@@ -197,6 +180,10 @@ const PricingCalculator = () => {
                   {customizationPrices[customization as keyof typeof customizationPrices].name}
                 </span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Shipping</span>
+                <span className="font-medium text-success">Included</span>
+              </div>
               {currentDiscount > 0 && (
                 <div className="flex justify-between items-center text-success">
                   <span className="flex items-center gap-1">
@@ -217,7 +204,7 @@ const PricingCalculator = () => {
               </div>
               <div className="flex justify-between items-center text-sm text-muted-foreground mt-1">
                 <span>Per piece</span>
-                <span>${(price / quantity).toFixed(2)}</span>
+                <span>${(price / Math.max(1, quantity)).toFixed(2)}</span>
               </div>
               {savings > 0 && (
                 <div className="text-sm text-success mt-2">
@@ -239,13 +226,7 @@ const PricingCalculator = () => {
                 variant="hero" 
                 size="lg" 
                 className="w-full"
-                onClick={() => {
-                  console.log("Get Quote button clicked");
-                  toast({
-                    title: "Quote Generated!",
-                    description: "Your custom quote is ready. We'll send details to your email."
-                  });
-                }}
+                onClick={() => navigate('/customize')}
               >
                 Get Official Quote
               </Button>
@@ -254,22 +235,23 @@ const PricingCalculator = () => {
                 variant="hero-secondary" 
                 size="lg" 
                 className="w-full"
-                onClick={() => {
-                  console.log("Order Sample button clicked");
-                  toast({
-                    title: "Sample Order Started!",
-                    description: "Opening sample selection..."
-                  });
-                }}
+                onClick={() => navigate('/samples')}
               >
                 Order Sample First
               </Button>
             </div>
 
-            <div className="text-center mt-4">
+            <div className="text-center mt-4 space-y-2">
               <p className="text-xs text-muted-foreground">
-                40% deposit • 60% before shipping • No hidden fees
+                40% deposit • 60% before shipping • Shipping included • Flat pricing for edits
               </p>
+              {priceBreakdown && (
+                <div className="text-[11px] text-muted-foreground">
+                  <div>Base/unit: ${priceBreakdown.baseUnit.toFixed(2)}</div>
+                  <div>Prints surcharge/unit: ${priceBreakdown.printsSurchargeUnit.toFixed(2)}</div>
+                  <div>Discount: {(priceBreakdown.discountRate * 100).toFixed(0)}%</div>
+                </div>
+              )}
             </div>
           </div>
         </div>

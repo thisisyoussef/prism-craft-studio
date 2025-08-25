@@ -1,47 +1,23 @@
 import { useState } from "react";
+import GarmentMockup, { type GarmentType } from './GarmentMockups'
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, Clock, CheckCircle, Star } from "lucide-react";
 import SampleOrderFlow from "./SampleOrderFlow";
+import { PRODUCT_CATALOG, PRODUCT_MAP } from '@/lib/products'
 import { toast } from "@/hooks/use-toast";
 
 const SampleOrdering = () => {
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
 
-  const sampleProducts = [
-    {
-      id: "t-shirt-cotton",
-      name: "Classic Cotton T-Shirt",
-      price: 8.99,
-      description: "100% cotton, standard fit",
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=300&auto=format&fit=crop",
-      leadTime: "2-3 days"
-    },
-    {
-      id: "hoodie-premium", 
-      name: "Premium Hoodie",
-      price: 15.99,
-      description: "Cotton blend, fleece-lined",
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=300&auto=format&fit=crop",
-      leadTime: "3-4 days"
-    },
-    {
-      id: "polo-performance",
-      name: "Performance Polo",
-      price: 12.99,
-      description: "Moisture-wicking fabric",
-      image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?q=80&w=300&auto=format&fit=crop",
-      leadTime: "2-3 days"
-    },
-    {
-      id: "sweatshirt-crew",
-      name: "Crew Sweatshirt", 
-      price: 13.99,
-      description: "Cotton fleece, relaxed fit",
-      image: "https://images.unsplash.com/photo-1548804915-9c7b41b4a2d0?q=80&w=300&auto=format&fit=crop",
-      leadTime: "3-4 days"
-    }
-  ];
+  const sampleProducts = PRODUCT_CATALOG.map(p => ({
+    id: p.id,
+    name: p.name,
+    price: p.basePrice,
+    description: 'Premium materials, quality prints',
+    image: '',
+    leadTime: '2-4 days',
+  }))
 
   const testimonials = [
     {
@@ -131,12 +107,15 @@ const SampleOrdering = () => {
                   }`}
                   onClick={() => toggleSample(sample.id)}
                 >
-                  <div className="aspect-square rounded-lg overflow-hidden mb-4">
-                    <img
-                      src={sample.image}
-                      alt={sample.name}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="aspect-square rounded-lg overflow-hidden mb-4 bg-background flex items-center justify-center">
+                    {(() => {
+                      const type: GarmentType = (PRODUCT_MAP as any)[sample.id]?.mockupType || 't-shirt'
+                      return (
+                        <div className="w-full h-full p-6">
+                          <GarmentMockup type={type} view="front" color="#ffffff" />
+                        </div>
+                      )
+                    })()}
                   </div>
                   
                   <h4 className="font-medium text-foreground mb-2">
