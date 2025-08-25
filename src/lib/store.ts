@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/integrations/supabase/client'
 import type { User } from '@supabase/supabase-js'
+import { toast } from '@/hooks/use-toast'
 
 interface AuthState {
   user: User | null
@@ -39,8 +40,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
       if (error) throw error
       set({ user: data.user, loading: false })
+      toast({ 
+        title: "Welcome back!", 
+        description: "You've been signed in successfully." 
+      })
     } catch (error) {
       set({ loading: false })
+      toast({ 
+        title: "Error", 
+        description: "Invalid email or password. Please try again.",
+        variant: "destructive"
+      })
       throw error
     }
   },
@@ -52,6 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             company_name: companyName,
           },
@@ -59,19 +70,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
       if (error) throw error
       
-      // Create company record
-      if (data.user) {
-        await supabase
-          .from('companies')
-          .insert({
-            id: data.user.id,
-            name: companyName,
-          })
-      }
-      
       set({ user: data.user, loading: false })
+      toast({ 
+        title: "Account created!", 
+        description: "Please check your email to confirm your account." 
+      })
     } catch (error) {
       set({ loading: false })
+      toast({ 
+        title: "Error", 
+        description: "Failed to create account. Please try again.",
+        variant: "destructive"
+      })
       throw error
     }
   },
@@ -81,7 +91,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       set({ user: null })
+      toast({ 
+        title: "Signed out", 
+        description: "You've been signed out successfully." 
+      })
     } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "There was an error signing out. Please try again.",
+        variant: "destructive"
+      })
       throw error
     }
   },
@@ -108,9 +127,25 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   addOrder: async (order) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User must be authenticated')
+
       const { data, error } = await supabase
         .from('orders')
-        .insert(order)
+        .insert([{
+          user_id: user.id,
+          product_id: order.productId,
+          quantity: order.quantity,
+          colors: order.colors,
+          sizes: order.sizes,
+          customization_details: order.customizationDetails,
+          artwork_files: order.artworkFiles,
+          custom_text: order.customText,
+          placement: order.placement,
+          notes: order.notes,
+          total_amount: order.totalAmount,
+          status: 'draft'
+        }])
         .select()
         .single()
       
@@ -120,16 +155,35 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         orders: [...state.orders, data],
         currentOrder: data
       }))
+      
+      toast({ 
+        title: "Order created!", 
+        description: `Order ${data.order_number} has been created successfully.` 
+      })
     } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "Failed to create order. Please try again.",
+        variant: "destructive"
+      })
       throw error
     }
   },
 
   addSampleOrder: async (sampleData) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User must be authenticated')
+
       const { data, error } = await supabase
         .from('samples')
-        .insert(sampleData)
+        .insert([{
+          user_id: user.id,
+          product_names: sampleData.productNames,
+          shipping_address: sampleData.shippingAddress,
+          total_amount: sampleData.totalAmount,
+          status: 'pending'
+        }])
         .select()
         .single()
       
@@ -138,7 +192,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       set((state) => ({
         samples: [...state.samples, data]
       }))
+      
+      toast({ 
+        title: "Sample order placed!", 
+        description: `Sample order ${data.sample_number} has been placed successfully.` 
+      })
     } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "Failed to place sample order. Please try again.",
+        variant: "destructive"
+      })
       throw error
     }
   },

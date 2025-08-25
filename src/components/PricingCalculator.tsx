@@ -2,8 +2,12 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calculator, TrendingDown, Upload, Palette } from "lucide-react";
+import { useAuthStore } from "@/lib/store";
+import { toast } from "@/hooks/use-toast";
+import AuthDialog from "./AuthDialog";
 
 const PricingCalculator = () => {
+  const { user } = useAuthStore();
   const [quantity, setQuantity] = useState(100);
   const [productType, setProductType] = useState("t-shirt");
   const [customization, setCustomization] = useState("screen-print");
@@ -225,12 +229,55 @@ const PricingCalculator = () => {
             )}
 
             <div className="space-y-3">
-              <Button variant="hero" size="lg" className="w-full">
-                Get Official Quote
-              </Button>
-              <Button variant="hero-secondary" size="lg" className="w-full">
-                Order Sample First
-              </Button>
+              {user ? (
+                <Button 
+                  variant="hero" 
+                  size="lg" 
+                  className="w-full"
+                  onClick={() => {
+                    toast({
+                      title: "Quote Generated!",
+                      description: "Your custom quote is ready. Check your email for details."
+                    });
+                  }}
+                >
+                  Get Official Quote
+                </Button>
+              ) : (
+                <AuthDialog
+                  trigger={
+                    <Button variant="hero" size="lg" className="w-full">
+                      Sign In to Get Quote
+                    </Button>
+                  }
+                  defaultTab="signin"
+                />
+              )}
+              
+              {user ? (
+                <Button 
+                  variant="hero-secondary" 
+                  size="lg" 
+                  className="w-full"
+                  onClick={() => {
+                    toast({
+                      title: "Sample Order Placed!",
+                      description: "Your sample order has been placed successfully."
+                    });
+                  }}
+                >
+                  Order Sample First
+                </Button>
+              ) : (
+                <AuthDialog
+                  trigger={
+                    <Button variant="hero-secondary" size="lg" className="w-full">
+                      Sign In to Order Sample
+                    </Button>
+                  }
+                  defaultTab="signup"
+                />
+              )}
             </div>
 
             <div className="text-center mt-4">
