@@ -26,6 +26,7 @@ const Navigation = () => {
   };
 
   return (
+    <>
     <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 py-4">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="text-2xl font-medium tracking-tight text-foreground">
@@ -222,6 +223,9 @@ const Navigation = () => {
         </div>
       )}
     </nav>
+    {/* Spacer to offset fixed nav height */}
+    <div className="h-16 md:h-20" aria-hidden="true" />
+    </>
   );
 };
 
