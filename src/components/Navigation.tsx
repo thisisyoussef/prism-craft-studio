@@ -9,6 +9,7 @@ const Navigation = () => {
   const { user, signOut, initialize } = useAuthStore();
 
   useEffect(() => {
+    console.log("Navigation: Initializing auth...");
     initialize();
   }, [initialize]);
 

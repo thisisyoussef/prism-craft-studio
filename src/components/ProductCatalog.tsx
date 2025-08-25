@@ -132,11 +132,24 @@ const ProductCatalog = () => {
                 </div>
                 
                 <div className="space-y-3">
-                  <ProductCustomizer />
+                  <Button 
+                    variant="hero" 
+                    className="w-full"
+                    onClick={() => {
+                      console.log("Customize Product button clicked");
+                      toast({
+                        title: "Product Customizer",
+                        description: "Opening customization options..."
+                      });
+                    }}
+                  >
+                    Customize Product
+                  </Button>
                   <Button 
                     variant="ghost" 
                     className="w-full"
                     onClick={() => {
+                      console.log("View Details button clicked");
                       toast({
                         title: "Product Details",
                         description: `Viewing details for ${product.name}`

@@ -14,6 +14,8 @@ const PricingCalculator = () => {
   const [price, setPrice] = useState(0);
   const [savings, setSavings] = useState(0);
 
+  console.log("PricingCalculator: user state:", user ? "logged in" : "not logged in");
+
   const productPrices = {
     "t-shirt": { base: 12.99, name: "Classic T-Shirt" },
     "hoodie": { base: 24.99, name: "Premium Hoodie" },
@@ -235,6 +237,7 @@ const PricingCalculator = () => {
                   size="lg" 
                   className="w-full"
                   onClick={() => {
+                    console.log("Get Quote button clicked - user logged in");
                     toast({
                       title: "Quote Generated!",
                       description: "Your custom quote is ready. Check your email for details."
@@ -260,6 +263,7 @@ const PricingCalculator = () => {
                   size="lg" 
                   className="w-full"
                   onClick={() => {
+                    console.log("Order Sample button clicked - user logged in");
                     toast({
                       title: "Sample Order Placed!",
                       description: "Your sample order has been placed successfully."
