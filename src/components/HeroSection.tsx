@@ -13,7 +13,7 @@ const HeroSection = () => {
           {/* Left Content */}
           <div>
             <h1 className="text-5xl md:text-6xl font-medium tracking-tight leading-[1.1] mb-6 text-foreground">
-              Modest PTRNs and Custom Designs in 2 minutes
+              Modest PTRNs and Custom Designs in 2-3 weeks
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-lg">
               Design custom apparel for your business. We work with you from idea to delivery. Starting at 50 pieces.
