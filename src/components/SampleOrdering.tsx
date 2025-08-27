@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package, Truck, Clock, CheckCircle, Star } from "lucide-react";
+import { Package, Truck, Clock, CheckCircle } from "lucide-react";
 import SampleOrderFlow from "./SampleOrderFlow";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from '@tanstack/react-query';
@@ -85,27 +85,6 @@ const SampleOrdering = () => {
       leadTime: '2-4 days',
     })),
   [productsData, coverByProduct]);
-
-  const testimonials = [
-    {
-      name: "Sarah Johnson",
-      company: "TechStart Inc.",
-      quote: "The sample quality was exactly what we expected. Made our bulk order decision easy.",
-      rating: 5
-    },
-    {
-      name: "Mike Chen", 
-      company: "Local Sports Club",
-      quote: "Fast delivery and great fabric quality. The colors matched perfectly.",
-      rating: 5
-    },
-    {
-      name: "Lisa Rodriguez",
-      company: "Creative Agency",
-      quote: "Professional packaging and detailed fabric info helped our client presentation.",
-      rating: 5
-    }
-  ];
 
   const toggleSample = (sampleId: string) => {
     setSelectedSamples(prev => 
@@ -234,37 +213,6 @@ const SampleOrdering = () => {
                 </>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Customer Testimonials */}
-        <div className="mt-12">
-          <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
-            Community voices
-          </h3>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <div
-                key={index}
-                className="bg-background rounded-xl p-6 shadow-soft border border-primary/5"
-              >
-                <div className="flex items-center gap-1 mb-3">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                
-                <blockquote className="text-muted-foreground mb-4 italic">
-                  "{testimonial.quote}"
-                </blockquote>
-                
-                <div>
-                  <div className="font-medium text-foreground">{testimonial.name}</div>
-                  <div className="text-sm text-muted-foreground">{testimonial.company}</div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
