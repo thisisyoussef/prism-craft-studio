@@ -49,10 +49,10 @@ const PricingCalculator = () => {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
-            Real-Time Pricing Calculator
+            Calculate your cost
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Instant, transparent pricing for organizations and businesses. Shipping included and edits never add to the cost.
+            Volume discounts applied automatically. All fees shown upfront.
           </p>
         </div>
 
@@ -61,7 +61,7 @@ const PricingCalculator = () => {
           <div className="bg-background rounded-2xl p-8 shadow-medium border border-primary/5">
             <h3 className="text-xl font-medium text-foreground mb-6 flex items-center gap-2">
               <Calculator className="w-5 h-5" />
-              Configure Your Order
+              Build your quote
             </h3>
 
             <div className="space-y-6">
@@ -167,7 +167,7 @@ const PricingCalculator = () => {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Product</span>
                 <span className="font-medium">
-                  {productPrices[productType as keyof typeof productPrices].name}
+                  {productPrices[productType as keyof typeof productPrices]?.name ?? 'Select a product'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -177,7 +177,7 @@ const PricingCalculator = () => {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Customization</span>
                 <span className="font-medium">
-                  {customizationPrices[customization as keyof typeof customizationPrices].name}
+                  {customizationPrices[customization as keyof typeof customizationPrices]?.name ?? 'Select a method'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -216,7 +216,7 @@ const PricingCalculator = () => {
             {nextTier && (
               <div className="bg-coral/10 border border-coral/20 rounded-lg p-4 mb-6">
                 <p className="text-sm text-foreground">
-                  <strong>Save more!</strong> Order {nextTier.min} pieces to get {(nextTier.discount * 100).toFixed(0)}% off
+                  Order {nextTier.min}+ pieces for {(nextTier.discount * 100).toFixed(0)}% off
                 </p>
               </div>
             )}
@@ -228,7 +228,7 @@ const PricingCalculator = () => {
                 className="w-full"
                 onClick={() => navigate('/customize')}
               >
-                Get Official Quote
+                Start designing
               </Button>
               
               <Button 
@@ -237,13 +237,13 @@ const PricingCalculator = () => {
                 className="w-full"
                 onClick={() => navigate('/samples')}
               >
-                Order Sample First
+                Get samples first
               </Button>
             </div>
 
             <div className="text-center mt-4 space-y-2">
               <p className="text-xs text-muted-foreground">
-                40% deposit • 60% before shipping • Shipping included • Flat pricing for edits
+                Payment: 40% deposit • 60% before shipping • Design support included
               </p>
               {priceBreakdown && (
                 <div className="text-[11px] text-muted-foreground">

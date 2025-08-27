@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { zodErrorMessage } from "@/lib/errors";
-import GarmentMockup, { type GarmentType } from './GarmentMockups'
+// Removed GarmentMockup SVGs in favor of local images
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,29 @@ import { Package, Truck, Clock, CheckCircle, Star, Loader2, CreditCard } from "l
 import toast from 'react-hot-toast';
 import AuthDialog from './AuthDialog';
 import GuestDetailsDialog from './GuestDetailsDialog';
-import { supabase } from '@/lib/supabase';
-import { PRODUCT_CATALOG, PRODUCT_MAP } from '@/lib/products'
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { sendGuestDraftEmail } from '@/lib/email';
+
+type ProductRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  base_price: number | null;
+  image_url: string | null;
+};
+
+type VariantRow = {
+  id: string;
+  product_id: string;
+  color_name: string;
+  color_hex: string | null;
+  active: boolean | null;
+  image_url?: string | null;
+  front_image_url?: string | null;
+  back_image_url?: string | null;
+  sleeve_image_url?: string | null;
+};
 
 type SampleOrderFlowProps = {
   mode?: 'dialog' | 'inline';
@@ -42,14 +62,62 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
   const { addSampleOrder } = useOrderStore();
   const { info } = useGuestStore();
 
-  const sampleProducts = PRODUCT_CATALOG.map(p => ({
-    id: p.id,
-    name: p.name,
-    price: p.basePrice,
-    description: "Premium materials, quality prints",
-    image: "",
-    leadTime: "2-4 days",
-  }))
+  const { data: productsData } = useQuery<ProductRow[]>({
+    queryKey: ['sample-products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, description, base_price, image_url, customization_options')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      // Filter only active products
+      const activeProducts = (data || []).filter(p => {
+        const opts = p.customization_options as any;
+        return opts?.active === true || opts?.active === 'true';
+      });
+      return activeProducts;
+    },
+  });
+
+  // Fetch variants for these products to derive a preferred front image per product
+  const { data: variantsData } = useQuery<VariantRow[]>({
+    enabled: !!productsData && productsData.length > 0,
+    queryKey: ['sample-variants', (productsData || []).map(p => p.id).join(',')],
+    queryFn: async () => {
+      const ids = (productsData || []).map(p => p.id);
+      if (ids.length === 0) return [] as VariantRow[];
+      const { data, error } = await (supabase as any)
+        .from('product_variants')
+        .select('id, product_id, color_name, color_hex, active, image_url, front_image_url, back_image_url, sleeve_image_url')
+        .in('product_id', ids);
+      if (error) throw error;
+      return (data as unknown as VariantRow[]) || [];
+    },
+  });
+
+  // Map product_id -> first available best image preferring front, then image, then back/sleeve
+  const coverByProduct = useMemo(() => {
+    const map = new Map<string, string | null>();
+    const list = variantsData || [];
+    for (const v of list) {
+      if (v.active === false) continue;
+      const best = v.front_image_url || v.image_url || v.back_image_url || v.sleeve_image_url || null;
+      if (!best || best === '/placeholder.svg') continue; // Skip placeholder images
+      if (!map.has(v.product_id)) map.set(v.product_id, best);
+    }
+    return map;
+  }, [variantsData]);
+
+  const sampleProducts = useMemo(() =>
+    (productsData || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.base_price || 0),
+      description: p.description || 'Premium materials, quality prints',
+      image: coverByProduct.get(p.id) || (p.image_url !== '/placeholder.svg' ? p.image_url : '') || '',
+      leadTime: '2-4 days',
+    })),
+  [productsData, coverByProduct]);
 
   const effectiveSelected = selectedSamplesProp ?? selectedSamples;
 
@@ -138,7 +206,7 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
   const LeftSection = (
     <div className="lg:col-span-2 space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-foreground mb-4">Select Samples</h3>
+        <h3 className="text-lg font-medium text-foreground mb-4">Select samples</h3>
         <div className="grid sm:grid-cols-2 gap-4">
           {sampleProducts.map((sample) => (
             <div
@@ -150,15 +218,12 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
               }`}
               onClick={() => toggleSample(sample.id)}
             >
-              <div className="aspect-square rounded-lg overflow-hidden mb-3 bg-background flex items-center justify-center">
-                {(() => {
-                  const type: GarmentType = (PRODUCT_MAP as any)[sample.id]?.mockupType || 't-shirt';
-                  return (
-                    <div className="w-full h-full p-6">
-                      <GarmentMockup type={type} view="front" color="#ffffff" />
-                    </div>
-                  );
-                })()}
+              <div className="aspect-square rounded-lg overflow-hidden mb-3 bg-background">
+                {sample.image ? (
+                  <img src={sample.image} alt={sample.name} className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-sm text-muted-foreground">No image</div>
+                )}
               </div>
               <h4 className="font-medium text-foreground mb-1">{sample.name}</h4>
               <p className="text-sm text-muted-foreground mb-2">{sample.description}</p>
@@ -220,7 +285,7 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
       {/* In inline mode, show shipping address form here when samples are selected */}
       {hideSelection && effectiveSelected.length > 0 && (
         <div className="bg-card-secondary rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-medium text-foreground mb-4">Shipping Address</h3>
+          <h3 className="text-lg font-medium text-foreground mb-4">Shipping address</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Full Name *</Label>
@@ -253,7 +318,7 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
       )}
 
       <div className="bg-card-secondary rounded-xl p-6 sticky top-0">
-        <h3 className="text-lg font-medium text-foreground mb-4">Order Summary</h3>
+        <h3 className="text-lg font-medium text-foreground mb-4">Order summary</h3>
         {effectiveSelected.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">Select samples to continue</p>
         ) : (
@@ -299,14 +364,14 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
                   ) : (
                     <>
                       <CreditCard className="w-4 h-4" />
-                      Place Sample Order
+                      Place order
                     </>
                   )}
                 </Button>
               ) : (
                 <>
                   <GuestDetailsDialog
-                    trigger={<Button className="w-full" size="lg">Order as Guest</Button>}
+                    trigger={<Button className="w-full" size="lg">Order as guest</Button>}
                     title="Order as Guest"
                     description="Enter your details to place a sample order as a guest. We'll email your order receipt and tracking updates."
                     onSubmitted={async () => {
@@ -340,7 +405,7 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
                           totals: { subtotal: selectedTotal, shipping: shippingCost, total: grandTotal },
                           pricing: { selectedSamples: effectiveSelected, shippingAddress },
                         }
-                        const { error } = await supabase.from('guest_drafts').insert(payload as any)
+                        const { error } = await (supabase as any).from('guest_drafts').insert(payload as any)
                         if (error) throw error
                         await sendGuestDraftEmail('sample', info?.email, payload)
                         toast.success('Guest sample order saved. We\'ll follow up via email.')
@@ -353,13 +418,14 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
                     }}
                   />
                   <AuthDialog 
-                    trigger={<Button variant="outline" className="w-full" size="lg">Sign In to Order</Button>}
+                    trigger={<Button variant="outline" className="w-full" size="lg">Sign in to order</Button>}
                     defaultTab="signup"
                   />
                 </>
               )}
             </div>
             <div className="bg-coral/10 border border-coral/20 rounded-lg p-3 mt-4">
+              <p className="text-xs text-foreground"> Sample Credits: Cost applied toward bulk orders placed within 30 days</p>
               <p className="text-xs text-foreground">💡 <strong>Sample Credits:</strong> Cost applied toward bulk orders placed within 30 days</p>
             </div>
           </>
@@ -388,14 +454,14 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
             <DialogTrigger asChild>
               <Button variant="hero-secondary" size="lg" className="flex items-center gap-2">
                 <Package className="w-4 h-4" />
-                Order Samples
+                See & feel samples
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Order Product Samples</DialogTitle>
+                <DialogTitle>Order samples</DialogTitle>
                 <DialogDescription>
-                  Get physical samples before placing your bulk order. Shipping takes 2-4 business days.
+                  Get physical samples before bulk orders. 2-4 day shipping.
                 </DialogDescription>
               </DialogHeader>
               {InnerContent}

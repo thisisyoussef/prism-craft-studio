@@ -63,14 +63,14 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
         <DialogHeader>
           <DialogTitle>Welcome to PTRN</DialogTitle>
           <DialogDescription>
-            Sign in to your account or create a new one to get started for your organization or business.
+            Join our community. Sign in or create an account to serve together.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Create Account</TabsTrigger>
+            <TabsTrigger value="signin">Join us</TabsTrigger>
+            <TabsTrigger value="signup">Start together</TabsTrigger>
           </TabsList>
 
           <TabsContent value="signin" className="space-y-4">
@@ -104,7 +104,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign In
+                  Join community
                 </Button>
               </form>
             </Form>
@@ -118,7 +118,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
                   name="companyName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company Name</FormLabel>
+                      <FormLabel>Company name</FormLabel>
                       <FormControl>
                         <Input id="company-name" placeholder="Your Company Inc." {...field} />
                       </FormControl>
@@ -131,7 +131,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Business Email</FormLabel>
+                      <FormLabel>Business email</FormLabel>
                       <FormControl>
                         <Input id="signup-email" type="email" placeholder="admin@company.com" {...field} />
                       </FormControl>
@@ -154,7 +154,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Account
+                  Start together
                 </Button>
               </form>
             </Form>

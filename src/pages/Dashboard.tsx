@@ -23,20 +23,20 @@ const Dashboard = () => {
     <div className="relative min-h-screen bg-background">
       <Navigation />
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-8">
-        <h1 className="text-3xl font-medium text-foreground mb-4">Dashboard</h1>
+        <h1 className="text-3xl font-medium text-foreground mb-4">Your account</h1>
         {!user ? (
-          <div className="text-muted-foreground">Please sign in to view your dashboard.</div>
+          <div className="text-muted-foreground">Sign in to see your orders.</div>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-medium">Recent Orders</h2>
+                <h2 className="text-lg font-medium">Your orders</h2>
                 <Button variant="outline" size="sm" onClick={() => fetchOrders()} disabled={loading}>Refresh</Button>
               </div>
               {loading ? (
                 <div className="text-sm text-muted-foreground">Loading...</div>
               ) : (orders?.length || 0) === 0 ? (
-                <div className="text-sm text-muted-foreground">No orders yet.</div>
+                <div className="text-sm text-muted-foreground">No orders placed yet.</div>
               ) : (
                 <div className="space-y-2">
                   {orders.slice(0, 5).map((o: any) => (
@@ -57,13 +57,13 @@ const Dashboard = () => {
 
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-medium">Sample Requests</h2>
+                <h2 className="text-lg font-medium">Sample orders</h2>
                 <Button variant="outline" size="sm" onClick={() => fetchSamples()} disabled={loading}>Refresh</Button>
               </div>
               {loading ? (
                 <div className="text-sm text-muted-foreground">Loading...</div>
               ) : (samples?.length || 0) === 0 ? (
-                <div className="text-sm text-muted-foreground">No sample requests yet.</div>
+                <div className="text-sm text-muted-foreground">No samples ordered yet.</div>
               ) : (
                 <div className="space-y-2">
                   {samples.slice(0, 5).map((s: any) => (
@@ -84,7 +84,7 @@ const Dashboard = () => {
 
             {!hasAnyData ? (
               <div className="md:col-span-2 text-sm text-muted-foreground">
-                You don't have any activity yet. Create an order from the catalog or request samples to get started.
+                Start by browsing our catalog or ordering samples to see the quality.
               </div>
             ) : null}
           </div>

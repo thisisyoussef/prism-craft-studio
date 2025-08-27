@@ -12,16 +12,31 @@ export const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 }
 
-type EmailType = 'quote' | 'sample'
+type EmailType = 'quote' | 'sample' | 'order_update'
 
 const SendEmailSchema = z.object({
-  type: z.enum(['quote', 'sample']),
+  type: z.enum(['quote', 'sample', 'order_update']),
   to: z.string().email('Invalid recipient email'),
   payload: z.any().optional(),
 })
 type SendEmailRequest = z.infer<typeof SendEmailSchema>
 
-function renderGuestDraftHtml(type: EmailType, payload: any) {
+function renderHtml(type: EmailType, payload: any) {
+  if (type === 'order_update') {
+    const orderNo = payload?.order_number || payload?.order_id || 'Your Order'
+    const status = payload?.status || 'updated'
+    const explanation = payload?.explanation || ''
+    const notes = payload?.notes || ''
+    return `
+    <div style="font-family:Inter,system-ui,Arial,sans-serif">
+      <h2>Order Update: ${escapeHtml(orderNo)}</h2>
+      <p>Your order status is now: <strong>${escapeHtml(String(status).replace(/_/g,' '))}</strong>.</p>
+      ${explanation ? `<p>${escapeHtml(explanation)}</p>` : ''}
+      ${notes ? `<p style="color:#6b7280"><em>Note:</em> ${escapeHtml(notes)}</p>` : ''}
+      <p style="color:#6b7280">If you have any questions, just reply to this email.</p>
+    </div>
+    `
+  }
   const intro = type === 'quote' ? 'Thanks for your quote request!' : 'Thanks for your sample order request!'
   return `
   <div style="font-family:Inter,system-ui,Arial,sans-serif">
@@ -72,8 +87,11 @@ Deno.serve(async (req) => {
 
   const { type, to, payload } = body
 
-  const subject = type === 'quote' ? 'We received your quote request' : 'We received your sample order request'
-  const html = renderGuestDraftHtml(type, payload)
+  const subject =
+    type === 'quote' ? 'We received your quote request'
+    : type === 'sample' ? 'We received your sample order request'
+    : `Your order was updated${payload?.order_number ? ` • ${payload.order_number}` : ''}`
+  const html = renderHtml(type, payload)
 
   try {
     const res = await fetch('https://api.resend.com/emails', {

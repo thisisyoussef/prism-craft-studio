@@ -76,7 +76,7 @@ const Settings = () => {
         if (metaErr) console.warn("Failed to update user metadata:", metaErr.message);
       }
 
-      toast({ title: "Profile updated", description: "Your profile has been saved." });
+      toast({ title: "Saved", description: "Your information has been updated." });
       await refetch();
     } catch (err: any) {
       toast({
@@ -140,7 +140,7 @@ const Settings = () => {
         })
         .eq("id", editingId);
       if (error) throw error;
-      toast({ title: "Address updated" });
+      toast({ title: "Address saved" });
       setEditOpen(false);
       setEditingId(null);
       resetAddressForm();
@@ -266,7 +266,7 @@ const Settings = () => {
       }
       const { error } = await supabase.from("addresses").insert(payload);
       if (error) throw error;
-      toast({ title: "Address added" });
+      toast({ title: "Address saved" });
       resetAddressForm();
       setAddOpen(false);
       await fetchAddresses();
@@ -281,7 +281,7 @@ const Settings = () => {
     try {
       const { error } = await supabase.from("addresses").delete().eq("id", id);
       if (error) throw error;
-      toast({ title: "Deleted" });
+      toast({ title: "Address removed" });
       await fetchAddresses();
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to delete address", variant: "destructive" });
@@ -298,7 +298,7 @@ const Settings = () => {
         await supabase.from("addresses").update({ is_default_billing: false }).eq("user_id", user.id);
         await supabase.from("addresses").update({ is_default_billing: true }).eq("id", id);
       }
-      toast({ title: "Default updated" });
+      toast({ title: "Default set" });
       await fetchAddresses();
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to update default", variant: "destructive" });
@@ -341,7 +341,7 @@ const Settings = () => {
   const handleUpdateEmail = async () => {
     if (!user) return;
     if (!email || email === user.email) {
-      toast({ title: "No changes", description: "Email is unchanged." });
+      toast({ title: "No changes", description: "Email is the same." });
       return;
     }
     setSavingEmail(true);
@@ -349,8 +349,8 @@ const Settings = () => {
       const { error } = await supabase.auth.updateUser({ email });
       if (error) throw error;
       toast({
-        title: "Email update requested",
-        description: "Check your inbox to confirm the new email.",
+        title: "Check your email",
+        description: "We sent a confirmation link to verify your new email.",
       });
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to update email.", variant: "destructive" });
@@ -365,11 +365,11 @@ const Settings = () => {
   const handleUpdatePassword = async () => {
     if (!user) return;
     if (!newPassword || newPassword.length < 8) {
-      toast({ title: "Weak password", description: "Use at least 8 characters.", variant: "destructive" });
+      toast({ title: "Password too short", description: "Please use at least 8 characters.", variant: "destructive" });
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ title: "Passwords do not match", description: "Please confirm your password.", variant: "destructive" });
+      toast({ title: "Passwords don't match", description: "Please check and try again.", variant: "destructive" });
       return;
     }
     setSavingPassword(true);
@@ -378,7 +378,7 @@ const Settings = () => {
       if (error) throw error;
       setNewPassword("");
       setConfirmPassword("");
-      toast({ title: "Password updated", description: "Your password has been changed." });
+      toast({ title: "Password changed", description: "Your new password is now active." });
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to update password.", variant: "destructive" });
     } finally {
@@ -389,11 +389,11 @@ const Settings = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-6 py-10">
-        <h1 className="text-3xl font-semibold tracking-tight mb-6">Settings</h1>
+        <h1 className="text-3xl font-semibold tracking-tight mb-6">Account settings</h1>
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Account Info</CardTitle>
+            <CardTitle>Your information</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -416,7 +416,7 @@ const Settings = () => {
             </div>
             <div className="mt-4 flex justify-end">
               <Button onClick={handleSaveProfile} disabled={savingProfile}>
-                {savingProfile ? "Saving..." : "Save changes"}
+                {savingProfile ? "Saving..." : "Save"}
               </Button>
             </div>
           </CardContent>
@@ -480,7 +480,7 @@ const Settings = () => {
             </div>
             <DialogFooter>
               <Button onClick={handleSaveEdit} disabled={savingEdit}>
-                {savingEdit ? "Saving..." : "Save changes"}
+                {savingEdit ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -488,16 +488,16 @@ const Settings = () => {
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Address Book</CardTitle>
+            <CardTitle>Saved addresses</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">
-                Manage your shipping and billing addresses.
+                Add addresses for faster checkout.
               </p>
               <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) resetAddressForm(); }}>
                 <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => { resetAddressForm(); setAddOpen(true); }}>Add address</Button>
+                  <Button size="sm" onClick={() => { resetAddressForm(); setAddOpen(true); }}>Add new</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
@@ -555,7 +555,7 @@ const Settings = () => {
                   </div>
                   <DialogFooter>
                     <Button onClick={handleAddAddress} disabled={addingAddress}>
-                      {addingAddress ? "Adding..." : "Add address"}
+                      {addingAddress ? "Adding..." : "Add"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -608,7 +608,7 @@ const Settings = () => {
                   {(!addresses || addresses.length === 0) && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                        {loadingAddresses ? "Loading addresses..." : "No addresses yet"}
+                        {loadingAddresses ? "Loading..." : "No addresses saved"}
                       </TableCell>
                     </TableRow>
                   )}
@@ -620,7 +620,7 @@ const Settings = () => {
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Billing History</CardTitle>
+            <CardTitle>Payment history</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="border rounded-md overflow-hidden">
@@ -647,7 +647,7 @@ const Settings = () => {
                   {(!payments || payments.length === 0) && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                        {loadingPayments ? "Loading payments..." : "No payments yet"}
+                        {loadingPayments ? "Loading..." : "No payments made"}
                       </TableCell>
                     </TableRow>
                   )}
@@ -666,12 +666,12 @@ const Settings = () => {
               <div className="md:col-span-2">
                 <Label htmlFor="email">Email address</Label>
                 <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-                <p className="text-sm text-muted-foreground mt-2">Current: {displayEmail}</p>
+                <p className="text-sm text-muted-foreground mt-2">Currently using: {displayEmail}</p>
               </div>
             </div>
             <div className="mt-4 flex justify-end">
               <Button variant="outline" onClick={handleUpdateEmail} disabled={savingEmail}>
-                {savingEmail ? "Updating..." : "Update email"}
+                {savingEmail ? "Updating..." : "Change email"}
               </Button>
             </div>
           </CardContent>
@@ -694,7 +694,7 @@ const Settings = () => {
             </div>
             <div className="mt-4 flex justify-end">
               <Button variant="secondary" onClick={handleUpdatePassword} disabled={savingPassword}>
-                {savingPassword ? "Updating..." : "Change password"}
+                {savingPassword ? "Updating..." : "Update password"}
               </Button>
             </div>
           </CardContent>
@@ -704,7 +704,7 @@ const Settings = () => {
 
         <div className="text-sm text-muted-foreground">
           <p>
-            Need help? Contact support at <a className="underline" href="mailto:support@example.com">support@example.com</a>.
+            Questions? Email us at <a className="underline" href="mailto:support@example.com">support@example.com</a>
           </p>
         </div>
       </div>

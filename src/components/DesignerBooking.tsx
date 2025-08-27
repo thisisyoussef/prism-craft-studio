@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, User, CheckCircle, Package } from "lucide-react";
+import d1 from "@/assets/images/PHOTO-2025-05-21-20-42-39 10.jpg";
+import d2 from "@/assets/images/PHOTO-2025-05-21-20-42-39 11.jpg";
+import d3 from "@/assets/images/PHOTO-2025-05-21-20-42-39 12.jpg";
 
 const DesignerBooking = () => {
   const designers = [
@@ -13,7 +16,7 @@ const DesignerBooking = () => {
       projects: 156,
       hourlyRate: 125,
       availability: "Available Today",
-      image: "https://images.unsplash.com/photo-1494790108755-2616b612b786?q=80&w=150&auto=format&fit=crop",
+      image: d1,
       skills: ["Logo Design", "Brand Guidelines", "Print Ready Files"],
       languages: ["English", "Mandarin"]
     },
@@ -26,7 +29,7 @@ const DesignerBooking = () => {
       projects: 203,
       hourlyRate: 110,
       availability: "Available Tomorrow",
-      image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=150&auto=format&fit=crop",
+      image: d2,
       skills: ["Sports Graphics", "Vintage Designs", "Typography"],
       languages: ["English", "Spanish"]
     },
@@ -39,7 +42,7 @@ const DesignerBooking = () => {
       projects: 89,
       hourlyRate: 150,
       availability: "Available Next Week",
-      image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=150&auto=format&fit=crop",
+      image: d3,
       skills: ["Pattern Making", "Color Theory", "Trend Analysis"],
       languages: ["English", "French", "Spanish"]
     }
@@ -74,10 +77,10 @@ const DesignerBooking = () => {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
-            Work with Professional Designers
+            Design guidance
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Book consultations with experienced designers to bring your vision to life. From concept to print-ready files.
+            From concept to production. Our team is here to serve your vision.
           </p>
         </div>
 
@@ -94,7 +97,7 @@ const DesignerBooking = () => {
             >
               {index === 1 && (
                 <Badge variant="default" className="mb-4">
-                  Most Popular
+                  Most popular
                 </Badge>
               )}
               
@@ -127,7 +130,7 @@ const DesignerBooking = () => {
                 variant={index === 1 ? "default" : "outline"} 
                 className="w-full"
               >
-                {index === 0 ? "Get Free Review" : "Book Consultation"}
+                {index === 0 ? "Request guidance" : "Schedule support"}
               </Button>
             </div>
           ))}
@@ -136,7 +139,7 @@ const DesignerBooking = () => {
         {/* Designer Profiles */}
         <div className="mb-16">
           <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
-            Meet Our Designers
+            Our family
           </h3>
           
           <div className="grid md:grid-cols-3 gap-8">
@@ -194,10 +197,10 @@ const DesignerBooking = () => {
                 <div className="space-y-2">
                   <Button variant="hero" size="sm" className="w-full">
                     <Calendar className="w-4 h-4" />
-                    Book Consultation
+                    Get guidance
                   </Button>
                   <Button variant="ghost" size="sm" className="w-full">
-                    View Portfolio
+                    View portfolio
                   </Button>
                 </div>
               </div>
@@ -208,7 +211,7 @@ const DesignerBooking = () => {
         {/* How It Works */}
         <div className="bg-card-secondary rounded-2xl p-8 border border-primary/5">
           <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
-            How Designer Collaboration Works
+            How we serve
           </h3>
           
           <div className="grid md:grid-cols-4 gap-6">
@@ -216,9 +219,9 @@ const DesignerBooking = () => {
               <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center mx-auto mb-4">
                 <Calendar className="w-6 h-6" />
               </div>
-              <h4 className="font-medium text-foreground mb-2">1. Book Session</h4>
+              <h4 className="font-medium text-foreground mb-2">1. Connect</h4>
               <p className="text-sm text-muted-foreground">
-                Choose a designer and book a consultation that fits your timeline
+                Choose someone from our team to guide you
               </p>
             </div>
             
@@ -226,9 +229,9 @@ const DesignerBooking = () => {
               <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center mx-auto mb-4">
                 <User className="w-6 h-6" />
               </div>
-              <h4 className="font-medium text-foreground mb-2">2. Collaborate</h4>
+              <h4 className="font-medium text-foreground mb-2">2. Listen</h4>
               <p className="text-sm text-muted-foreground">
-                Work together to develop concepts and refine your design vision
+                We understand your needs and respect your vision
               </p>
             </div>
             
@@ -236,9 +239,9 @@ const DesignerBooking = () => {
               <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-6 h-6" />
               </div>
-              <h4 className="font-medium text-foreground mb-2">3. Approve</h4>
+              <h4 className="font-medium text-foreground mb-2">3. Create</h4>
               <p className="text-sm text-muted-foreground">
-                Review final designs and approve print-ready files
+                Craft quality files with care and attention
               </p>
             </div>
             
@@ -246,9 +249,9 @@ const DesignerBooking = () => {
               <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center mx-auto mb-4">
                 <Package className="w-6 h-6" />
               </div>
-              <h4 className="font-medium text-foreground mb-2">4. Produce</h4>
+              <h4 className="font-medium text-foreground mb-2">4. Deliver</h4>
               <p className="text-sm text-muted-foreground">
-                Your designs go straight to production with guaranteed quality
+                Bring your vision to life with quality
               </p>
             </div>
           </div>

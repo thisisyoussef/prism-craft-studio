@@ -72,16 +72,20 @@ const OrderDetails = () => {
         if (!files.length) return
         const entries: Array<[string, string]> = []
         for (const name of files) {
-          let pathA = `${order.id}/${name}`
-          let pathB = name
-          // Try id/name first
+          // If already an absolute URL, just use it
+          if (/^https?:\/\//i.test(name)) {
+            entries.push([name, name])
+            continue
+          }
+          const candidates = [
+            `${order.id}/${name}`,
+            `${order.id}/updates/${name}`,
+            name,
+          ]
           let signed: string | null = null
-          const a = await (supabase as any).storage.from('artwork').createSignedUrl(pathA, 60 * 60)
-          if (!a.error && a.data?.signedUrl) {
-            signed = a.data.signedUrl
-          } else {
-            const b = await (supabase as any).storage.from('artwork').createSignedUrl(pathB, 60 * 60)
-            if (!b.error && b.data?.signedUrl) signed = b.data.signedUrl
+          for (const key of candidates) {
+            const res = await (supabase as any).storage.from('artwork').createSignedUrl(key, 60 * 60)
+            if (!res.error && res.data?.signedUrl) { signed = res.data.signedUrl; break }
           }
           if (signed) entries.push([name, signed])
         }
@@ -126,24 +130,7 @@ const OrderDetails = () => {
       const next = statusSteps[idx + 1]?.key
       if (!next) return toast.error('No next status')
       const reason = window.prompt(`Advance status to ${titleCase(next)}. Optional note:`) || ''
-      const { error: upErr } = await (supabase as any)
-        .from('orders')
-        .update({ status: next })
-        .eq('id', order.id)
-      if (upErr) throw upErr
-      await (supabase as any).from('production_updates').insert({
-        order_id: order.id, stage: next, status: 'updated', description: reason, photos: []
-      })
-      setOrder((o: any) => ({ ...o, status: next }))
-      // reload updates
-      const { data: updRows } = await (supabase as any)
-        .from('production_updates')
-        .select('id, stage, status, description, photos, created_at')
-        .eq('order_id', order.id)
-      if (Array.isArray(updRows)) {
-        const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        setUpdates(sorted as any)
-      }
+      await postUpdateAndSetStatus(next, 'updated', reason, [])
       toast.success('Status advanced')
     } catch (e: any) {
       toast.error(serverErrorMessage(e, 'Failed to advance status'))
@@ -157,23 +144,7 @@ const OrderDetails = () => {
       const prev = statusSteps[idx - 1]?.key
       if (!prev) return toast.error('No previous status')
       const reason = window.prompt(`Revert status to ${titleCase(prev)}. Optional note:`) || ''
-      const { error: upErr } = await (supabase as any)
-        .from('orders')
-        .update({ status: prev })
-        .eq('id', order.id)
-      if (upErr) throw upErr
-      await (supabase as any).from('production_updates').insert({
-        order_id: order.id, stage: prev, status: 'updated', description: reason, photos: []
-      })
-      setOrder((o: any) => ({ ...o, status: prev }))
-      const { data: updRows } = await (supabase as any)
-        .from('production_updates')
-        .select('id, stage, status, description, photos, created_at')
-        .eq('order_id', order.id)
-      if (Array.isArray(updRows)) {
-        const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        setUpdates(sorted as any)
-      }
+      await postUpdateAndSetStatus(prev, 'updated', reason, [])
       toast.success('Status reverted')
     } catch (e: any) {
       toast.error(serverErrorMessage(e, 'Failed to revert status'))
@@ -190,19 +161,12 @@ const OrderDetails = () => {
         const { error: upErr } = await (supabase as any).storage.from('artwork').upload(path, f, { upsert: true })
         if (!upErr) uploaded.push(path)
       }
-      const { data, error } = await (supabase as any)
-        .from('production_updates')
-        .insert({
-          order_id: order.id,
-          stage: composer.stage || order.status,
-          status: composer.status || 'updated',
-          description: composer.description || null,
-          photos: uploaded.length ? uploaded : null,
-        })
-        .select('id, stage, status, description, photos, created_at')
-        .single()
-      if (error) throw error
-      setUpdates((prev) => [data, ...prev])
+      await postUpdateAndSetStatus(
+        composer.stage || order.status,
+        composer.status || 'updated',
+        composer.description || '',
+        uploaded
+      )
       setComposer({ stage: order.status, status: 'updated', description: '', files: [] })
       toast.success('Update posted')
     } catch (e: any) {
@@ -210,9 +174,55 @@ const OrderDetails = () => {
     }
   }
 
+  // Centralized helper: update order.status and insert production_updates, then refresh updates list
+  const postUpdateAndSetStatus = async (
+    stage: string,
+    status: string,
+    description: string,
+    photos: string[]
+  ) => {
+    if (!order?.id) return
+    // Update order status first
+    const { error: upErr } = await (supabase as any)
+      .from('orders')
+      .update({ status: stage })
+      .eq('id', order.id)
+    if (upErr) throw upErr
+
+    // Insert production update record
+    const { error: puErr } = await (supabase as any)
+      .from('production_updates')
+      .insert({
+        order_id: order.id,
+        stage,
+        status: status || 'updated',
+        description: description || null,
+        photos: photos.length ? photos : null,
+      })
+    if (puErr) throw puErr
+
+    // Update local order state immediately so timeline reflects new status
+    setOrder((o: any) => ({ ...o, status: stage }))
+
+    // Reload updates to include the new one at the top
+    const { data: updRows } = await (supabase as any)
+      .from('production_updates')
+      .select('id, stage, status, description, photos, created_at')
+      .eq('order_id', order.id)
+    if (Array.isArray(updRows)) {
+      const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setUpdates(sorted as any)
+    }
+  }
+
   useEffect(() => {
     const run = async () => {
-      if (!id) return
+      // Guard: avoid querying when id is the placeholder 'new' or missing
+      if (!id || id === 'new') {
+        setLoading(false)
+        setOrder(null)
+        return
+      }
       try {
         setLoading(true)
         const { data: orderData, error: orderErr } = await supabase
@@ -250,7 +260,7 @@ const OrderDetails = () => {
           const { data: profile } = await (supabase as any)
             .from('profiles')
             .select('role')
-            .eq('id', user.id)
+            .eq('user_id', user.id)
             .maybeSingle()
           const role = (profile as any)?.role
           setIsAdmin(role === 'admin' || role === 'moderator')
@@ -269,7 +279,8 @@ const OrderDetails = () => {
 
   // Realtime subscriptions: keep payments and order status in sync
   useEffect(() => {
-    if (!id) return
+    // Guard: skip realtime when id is placeholder 'new' or missing
+    if (!id || id === 'new') return
 
     const refetchPayments = async () => {
       const { data: paymentRows } = await (supabase as any)
@@ -306,7 +317,8 @@ const OrderDetails = () => {
 
   // On return from Stripe, poll until the indicated phase shows as succeeded.
   useEffect(() => {
-    if (!id) return
+    // Guard: skip Stripe polling when id is placeholder 'new' or missing
+    if (!id || id === 'new') return
     const params = new URLSearchParams(location.search)
     const payment = params.get('payment') // success | cancelled
     const phase = (params.get('phase') as 'deposit' | 'balance' | null)
@@ -345,6 +357,7 @@ const OrderDetails = () => {
       const started = Date.now()
       const timeoutMs = 60_000
       const intervalMs = 1_000
+      let success = false
       while (!cancelled && Date.now() - started < timeoutMs) {
         const { data: paymentRows } = await (supabase as any)
           .from('payments')
@@ -364,9 +377,40 @@ const OrderDetails = () => {
               .single()
             if (orderData) setOrder(orderData)
           } catch {}
+          success = true
           break
         }
         await new Promise(r => setTimeout(r, intervalMs))
+      }
+
+      // Fallback: if polling timed out, invoke reconcile-payment edge function
+      if (!success && !cancelled) {
+        try {
+          await (supabase as any).functions.invoke('reconcile-payment', {
+            body: { session_id: sessionId, order_id: id, phase },
+          })
+          // refetch payments
+          const { data: paymentRows } = await (supabase as any)
+            .from('payments')
+            .select('phase, amount_cents, status')
+            .eq('order_id', id)
+          const byPhase: any = { deposit: null, balance: null }
+          ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
+          setPayments(byPhase)
+          if (byPhase[phase]?.status === 'succeeded') {
+            toast.success('Payment reconciled successfully')
+            try {
+              const { data: orderData } = await supabase
+                .from('orders')
+                .select('*, products(name, image_url)')
+                .eq('id', id)
+                .single()
+              if (orderData) setOrder(orderData)
+            } catch {}
+          }
+        } catch (e) {
+          console.warn('Reconcile fallback failed', e)
+        }
       }
 
       clearParams()
@@ -426,13 +470,27 @@ const OrderDetails = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {order.artwork_files.map((url: string, i: number) => (
                         <div key={i} className="border rounded p-2 bg-muted/30">
-                          {isImageUrl(url) ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={artworkUrls[url] || artworkUrls[`${order.id}/${url}`] || url} alt={`Artwork ${i + 1}`} className="w-full h-28 object-cover rounded" />
-                          ) : (
-                            <div className="h-28 flex items-center justify-center text-xs text-muted-foreground">File</div>
-                          )}
-                          <a href={artworkUrls[url] || artworkUrls[`${order.id}/${url}`] || url} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-primary truncate">{url}</a>
+                          {(() => {
+                            const signed = artworkUrls[url]
+                            if (signed && isImageUrl(url)) {
+                              // eslint-disable-next-line @next/next/no-img-element
+                              return <img src={signed} alt={`Artwork ${i + 1}`} className="w-full h-28 object-cover rounded" />
+                            }
+                            if (/^https?:\/\//i.test(url) && isImageUrl(url)) {
+                              // eslint-disable-next-line @next/next/no-img-element
+                              return <img src={url} alt={`Artwork ${i + 1}`} className="w-full h-28 object-cover rounded" />
+                            }
+                            return <div className="h-28 flex items-center justify-center text-xs text-muted-foreground">File</div>
+                          })()}
+                          {(() => {
+                            const signed = artworkUrls[url]
+                            const href = signed || (/^https?:\/\//i.test(url) ? url : undefined)
+                            return href ? (
+                              <a href={href} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-primary truncate">{url}</a>
+                            ) : (
+                              <span className="mt-2 block text-xs text-muted-foreground truncate" title="Not uploaded to storage">{url}</span>
+                            )
+                          })()}
                         </div>
                       ))}
                     </div>

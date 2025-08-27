@@ -8,6 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import DistributionToggle from '@/components/customizer/DistributionToggle'
+import SizeChips from '@/components/customizer/SizeChips'
+import MinProgress from '@/components/customizer/MinProgress'
+import ArtworkUploader from '@/components/customizer/ArtworkUploader'
+import PlacementEditor from '@/components/customizer/PlacementEditor'
 import { Slider } from '@/components/ui/slider'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -24,7 +29,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { sendGuestDraftEmail } from '../lib/email'
 import { useNavigate } from 'react-router-dom'
 import GarmentMockup, { type GarmentType } from './GarmentMockups'
-import { PRODUCT_CATALOG, PRODUCT_MAP } from '@/lib/products'
 
 type CustomizerMode = 'dialog' | 'page'
 
@@ -101,7 +105,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
   const { user } = useAuthStore()
   const { addOrder } = useOrderStore()
-  const { quantity, customization, price, prints, addPrint, updatePrint, removePrint, duplicatePrint, updateQuantity, updateProductType, updateCustomization } = usePricingStore()
+  const { quantity, customization, price, priceBreakdown, prints, addPrint, updatePrint, removePrint, duplicatePrint, updateQuantity, updateProductType, updateCustomization } = usePricingStore()
   const { info, address } = useGuestStore()
   const [confirmOpen, setConfirmOpen] = useState(false)
   // react-hook-form for live validation
@@ -127,6 +131,109 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   const [artworkAspect, setArtworkAspect] = useState<Record<string, number>>({})
   // Cache blob URLs per print/file to avoid re-creating every render (prevents flashing)
   const urlCache = useRef<Record<string, string>>({})
+
+  // Fallback sizes when product.available_sizes is empty
+  const fallbackSizes = ['XS','S','M','L','XL','XXL']
+
+  // Products and Variants from Supabase (single source of truth)
+  interface ProductRow { id: string; name: string; base_price: number | null; category: string | null; available_sizes?: string[] | null }
+  const [products, setProducts] = useState<ProductRow[]>([])
+
+  // Load products once
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('products')
+          .select('id, name, base_price, category, available_sizes')
+          .order('name', { ascending: true })
+        if (!error && Array.isArray(data)) setProducts(data as ProductRow[])
+      } catch {}
+    })()
+  }, [])
+
+  // Auto-select first product when products load (ensures variants/colors fetch)
+  useEffect(() => {
+    if (!selectedProduct && products.length > 0) {
+      const first = products[0]!
+      setSelectedProduct(first.id)
+      updateProductType(first.id)
+      setValue('productId', first.id, { shouldValidate: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products])
+
+  // Variants for the selected product
+  interface Variant {
+    id: string
+    product_id?: string
+    color_name: string
+    color_hex?: string | null
+    image_url?: string | null
+    front_image_url?: string | null
+    back_image_url?: string | null
+    sleeve_image_url?: string | null
+    active?: boolean
+  }
+  const [variants, setVariants] = useState<Variant[]>([])
+
+  // Load variants when product changes
+  useEffect(() => {
+    if (!selectedProduct) { setVariants([]); return }
+    (async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('product_variants')
+          .select('id, color_name, color_hex, image_url, front_image_url, back_image_url, sleeve_image_url, active')
+          .eq('product_id', selectedProduct)
+        if (!error && Array.isArray(data)) {
+          const vs = data as Variant[]
+          setVariants(vs)
+          // default base color to first active variant if current selection is missing
+          const names = vs.map(v => v.color_name)
+          if (!names.includes(selectedBaseColor) && names.length > 0) {
+            setSelectedBaseColor(names[0]!)
+          }
+        }
+      } catch {}
+    })()
+  }, [selectedProduct])
+
+  // Pick variant by color name mapping
+  const selectedVariant = useMemo(() => {
+    const name = (selectedBaseColor || '').toLowerCase()
+    return variants.find(v => (v.color_name || '').toLowerCase() === name) || null
+  }, [variants, selectedBaseColor])
+
+  // Available sizes for the selected product (fallback to defaults)
+  const [availableSizes, setAvailableSizes] = useState<string[]>([])
+  useEffect(() => {
+    setAvailableSizes([])
+    if (!selectedProduct) return
+    ;(async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('products')
+          .select('available_sizes')
+          .eq('id', selectedProduct)
+          .maybeSingle()
+        if (!error && data && Array.isArray((data as any).available_sizes)) {
+          setAvailableSizes(((data as any).available_sizes as string[]) || [])
+        }
+      } catch {}
+    })()
+  }, [selectedProduct])
+
+  // Default size distribution when a product is selected (only if empty)
+  useEffect(() => {
+    const list = (availableSizes.length ? availableSizes : fallbackSizes)
+    const hasAny = Object.values(sizesQty).some(v => (v || 0) > 0)
+    if (selectedProduct && list.length && !hasAny) {
+      // Prefill with a skewed common run and top-up to 50
+      applyCommonRun()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct, availableSizes])
 
   // Keep RHF in sync with local state for live validation
   useEffect(() => {
@@ -165,27 +272,48 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     }
   }, [prints])
 
-  // Canonical products from PricingCalculator
-  const products = Object.fromEntries(
-    PRODUCT_CATALOG.map(p => [p.id, { name: p.name, basePrice: p.basePrice }])
-  ) as Record<string, { name: string; basePrice: number }>
+  
 
-  const colorSwatches: Record<string, string> = {
-    Black: '#111827',
-    White: '#ffffff',
-    Gray: '#6b7280',
-    Navy: '#1f2937',
-    Red: '#ef4444',
-    Blue: '#3b82f6',
-    Green: '#10b981',
-    Purple: '#8b5cf6',
-    Yellow: '#f59e0b',
-  }
+  // Derive a map for quick lookups
+  const productMap = useMemo(() => {
+    const map: Record<string, { name: string; basePrice: number; category: string | null; sizes: string[] | null }> = {}
+    products.forEach(p => { map[p.id] = { name: p.name, basePrice: p.base_price ?? 0, category: p.category, sizes: (p.available_sizes as any) ?? null } })
+    return map
+  }, [products])
+
+  // Colors come from the active product_variants for the selected product
+  const colorSwatches: Record<string, string> = useMemo(() => {
+    const entries = variants
+      .filter(v => v.active !== false)
+      .map(v => [v.color_name, v.color_hex || '#ffffff'] as const)
+    return Object.fromEntries(entries)
+  }, [variants])
   const colors = Object.keys(colorSwatches)
-  const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+  const sizes = useMemo(() => {
+    return productMap[selectedProduct]?.sizes || fallbackSizes
+  }, [productMap, selectedProduct])
   const placements = ['front','back','left_sleeve','right_sleeve','collar','tag']
 
-  const garmentType: GarmentType = (PRODUCT_MAP as any)[selectedProduct]?.mockupType ?? 't-shirt'
+  // Quantity distribution mode when user edits total
+  type DistMode = 'proportional' | 'even' | 'skew'
+  const [distMode, setDistMode] = useState<DistMode>('skew')
+
+  // Default preset: S–XL skew when product changes and no sizes chosen yet
+  useEffect(() => {
+    setDistMode('skew')
+    const total = Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)
+    if (selectedProduct && total === 0) {
+      applyCommonRun()
+    }
+  }, [selectedProduct])
+
+  const garmentType: GarmentType = useMemo(() => {
+    const cat = (productMap[selectedProduct]?.category || '').toLowerCase()
+    if (cat.includes('hoodie')) return 'hoodie'
+    if (cat.includes('polo')) return 'polo'
+    if (cat.includes('sweat')) return 'sweatshirt'
+    return 't-shirt'
+  }, [productMap, selectedProduct])
   const bounds = getBounds(garmentType, selectedView)
 
   const addPrintForCurrentView = () => {
@@ -220,6 +348,104 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
       setValue('sizesQty', next, { shouldValidate: true })
       return next
     })
+  }
+
+  const incrementSize = (size: string, step = 1) => updateSizeQty(size, (sizesQty[size] || 0) + step)
+  const decrementSize = (size: string, step = 1) => updateSizeQty(size, (sizesQty[size] || 0) - step)
+
+  const clearAllSizes = () => {
+    const next: Record<string, number> = {}
+    const list = (availableSizes.length ? availableSizes : fallbackSizes)
+    list.forEach(s => { next[s] = 0 })
+    setSizesQty(next)
+    updateQuantity(50)
+    setValue('sizesQty', next, { shouldValidate: true })
+  }
+
+  // Change total quantity and redistribute according to mode
+  const setTotalQuantity = (newTotalInput: number) => {
+    const list = (availableSizes.length ? availableSizes : fallbackSizes)
+    if (!list.length) return
+    const newTotal = Math.max(0, Math.floor(newTotalInput || 0))
+    const minTotal = Math.max(50, newTotal)
+    if (distMode === 'even') {
+      evenSplitToMin(minTotal)
+      return
+    }
+    if (distMode === 'skew') {
+      // Start from skew then top-up to minTotal evenly
+      applyCommonRun()
+      const current = Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)
+      if (current < minTotal) {
+        let remaining = minTotal - current
+        const present = list
+        const next = { ...sizesQty }
+        let idx = 0
+        while (remaining > 0) { next[present[idx % present.length]] = (next[present[idx % present.length]]||0)+1; remaining--; idx++ }
+        setSizesQty(next)
+        updateQuantity(minTotal)
+        setValue('sizesQty', next, { shouldValidate: true })
+      }
+      return
+    }
+    // proportional
+    const currentTotal = Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)
+    if (currentTotal === 0) {
+      evenSplitToMin(minTotal)
+      return
+    }
+    const ratios = Object.fromEntries(list.map(s => [s, (sizesQty[s] || 0) / currentTotal])) as Record<string, number>
+    let allocated = 0
+    const next: Record<string, number> = {}
+    for (let i=0;i<list.length;i++) {
+      const s = list[i]
+      if (i === list.length - 1) {
+        next[s] = Math.max(0, minTotal - allocated)
+      } else {
+        const n = Math.floor(minTotal * (ratios[s] || 0))
+        next[s] = n
+        allocated += n
+      }
+    }
+    setSizesQty(next)
+    updateQuantity(minTotal)
+    setValue('sizesQty', next, { shouldValidate: true })
+  }
+
+  const evenSplitToMin = (minTotal = 50) => {
+    const list = (availableSizes.length ? availableSizes : fallbackSizes)
+    if (list.length === 0) return
+    const base = Math.floor(minTotal / list.length)
+    let remainder = minTotal % list.length
+    const next: Record<string, number> = {}
+    for (const s of list) {
+      next[s] = base + (remainder > 0 ? 1 : 0)
+      remainder = Math.max(0, remainder - 1)
+    }
+    setSizesQty(next)
+    updateQuantity(minTotal)
+    setValue('sizesQty', next, { shouldValidate: true })
+  }
+
+  // Common apparel run (S–XL skew). Adjust as needed.
+  const applyCommonRun = () => {
+    const list = (availableSizes.length ? availableSizes : fallbackSizes)
+    const order = ['XS','S','M','L','XL','XXL','3XL','4XL']
+    const present = order.filter(s => list.includes(s))
+    const pattern: Record<string, number> = { XS: 0, S: 10, M: 15, L: 15, XL: 10, XXL: 0, '3XL': 0, '4XL': 0 }
+    const next: Record<string, number> = {}
+    present.forEach(s => { next[s] = pattern[s] ?? 0 })
+    const total = Object.values(next).reduce((a,b) => a + b, 0)
+    const finalTotal = Math.max(50, total)
+    // If below min, top-up evenly
+    if (finalTotal > total && present.length) {
+      let remaining = finalTotal - total
+      let idx = 0
+      while (remaining > 0) { next[present[idx % present.length]] = (next[present[idx % present.length]]||0)+1; remaining--; idx++ }
+    }
+    setSizesQty(next)
+    updateQuantity(Object.values(next).reduce((a,b)=>a+b,0))
+    setValue('sizesQty', next, { shouldValidate: true })
   }
 
   const handleCreateOrder = async () => {
@@ -316,9 +542,9 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
               <SelectValue placeholder="Select a product" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(products).map(([key, product]) => (
-                <SelectItem key={key} value={key}>
-                  {product.name} - ${products[key as keyof typeof products].basePrice}
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name} {typeof p.base_price === 'number' ? `- $${p.base_price}` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -328,12 +554,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
           )}
         </div>
 
-        {/* Quantity Summary (auto from sizes) */}
-        <div className="space-y-2">
-          <Label>Total Quantity</Label>
-          <Input type="number" value={quantity} readOnly className="bg-muted/50" />
-          <div className="text-xs text-muted-foreground">Calculated from size quantities. Minimum 50 pieces.</div>
-        </div>
+        
 
         {/* Color Selection */}
         <div className="space-y-3">
@@ -378,20 +599,39 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
         {/* Sizes with quantities */}
         <div className="space-y-3">
-          <Label>Sizes * (enter quantities)</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {sizes.map((size) => (
-              <div key={size} className="flex items-center gap-2">
-                <Badge variant="outline" className="w-12 justify-center">{size}</Badge>
-                <Input
-                  type="number"
-                  min={0}
-                  value={sizesQty[size] ?? 0}
-                  onChange={(e) => updateSizeQty(size, parseInt(e.target.value || '0'))}
-                  className="w-24"
-                />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Label>Sizes *</Label>
+            <div className="flex items-center gap-2">
+              <DistributionToggle value={distMode} onChange={(v) => setDistMode(v)} />
+              <Button type="button" variant="ghost" size="sm" onClick={clearAllSizes}>Clear</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => evenSplitToMin(50)}>Even 50</Button>
+              <Button type="button" variant="outline" size="sm" onClick={applyCommonRun}>S–XL Pack</Button>
+            </div>
+          </div>
+          <SizeChips
+            sizes={(availableSizes.length ? availableSizes : fallbackSizes)}
+            quantities={sizesQty}
+            onChange={(s, q) => updateSizeQty(s, q)}
+            onInc={(s) => incrementSize(s)}
+            onDec={(s) => decrementSize(s)}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Quantity</span>
+              <div className="inline-flex items-center gap-1">
+                <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity - 1)}>-1</Button>
+                <Input aria-label="Total Quantity" type="number" min={0} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '0'))} className="w-20 text-center" />
+                <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 1)}>+1</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 10)}>+10</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity)}>Apply</Button>
               </div>
-            ))}
+            </div>
+            <div className="min-w-[180px] flex-1">
+              {(() => {
+                const total = Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)
+                return <MinProgress total={total} min={50} />
+              })()}
+            </div>
           </div>
           {formState.errors.sizesQty?.message && (
             <div className="text-xs text-destructive">{formState.errors.sizesQty.message}</div>
@@ -431,110 +671,14 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             <div className="space-y-3">
               {prints.map((p) => (
                 <div key={p.id} className="border rounded-lg p-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="w-36">
-                      <Label className="text-xs">Location</Label>
-                      <Select value={p.location} onValueChange={(v) => updatePrint(p.id, { location: v as PrintLocation })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {placements.map(loc => (
-                            <SelectItem key={loc} value={loc}>{loc.replace('_',' ')}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="w-44">
-                      <Label className="text-xs">Method</Label>
-                      <Select value={p.method} onValueChange={(v) => updatePrint(p.id, { method: v as PrintMethod })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="screen-print">screen-print</SelectItem>
-                          <SelectItem value="embroidery">embroidery</SelectItem>
-                          <SelectItem value="vinyl">vinyl</SelectItem>
-                          <SelectItem value="dtg">dtg</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="w-40">
-                      <Label className="text-xs">Size (W x H in)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input type="number" min={1} step={0.5} value={p.size.widthIn}
-                          onChange={(e) => updatePrint(p.id, { size: { ...p.size, widthIn: parseFloat(e.target.value || '0') } })} />
-                        <span className="text-muted-foreground">×</span>
-                        <Input type="number" min={1} step={0.5} value={p.size.heightIn}
-                          onChange={(e) => updatePrint(p.id, { size: { ...p.size, heightIn: parseFloat(e.target.value || '0') } })} />
-                      </div>
-                    </div>
-                    <div className="w-28">
-                      <Label className="text-xs">Colors</Label>
-                      <Input type="number" min={1} max={10} value={p.colorCount}
-                        onChange={(e) => updatePrint(p.id, { colorCount: Math.max(1, parseInt(e.target.value || '1')) })} />
-                    </div>
-                    <div className="w-40">
-                      <Label className="text-xs">Artwork</Label>
-                      <Select
-                        value={(() => {
-                          const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
-                          if (f instanceof File) return f.name
-                          if (typeof f === 'string' && f) return f
-                          return undefined
-                        })()}
-                        onValueChange={(val) => {
-                          const file = artworkFiles.find(f => f.name === val)
-                          if (file) {
-                            updatePrint(p.id, { artworkFiles: [file] as File[] })
-                          }
-                        }}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Choose file" /></SelectTrigger>
-                        <SelectContent>
-                          {artworkFiles.length === 0 ? (
-                            <SelectItem value="__no_files__" disabled>No files uploaded</SelectItem>
-                          ) : (
-                            artworkFiles.map((f, i) => (
-                              <SelectItem key={`${f.name}-${i}`} value={f.name}>{f.name}</SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          id={`print-upload-${p.id}`}
-                          type="file"
-                          accept="image/*,.png,.jpg,.jpeg,.svg,.pdf,.ai,.eps"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) {
-                              updatePrint(p.id, { artworkFiles: [file] as File[] })
-                            }
-                            e.currentTarget.value = ''
-                          }}
-                        />
-                        <Label htmlFor={`print-upload-${p.id}`} className="inline-flex">
-                          <Button asChild variant="outline" size="sm">
-                            <span className="inline-flex items-center gap-1"><Upload className="w-3 h-3" /> Upload</span>
-                          </Button>
-                        </Label>
-                        <Button variant="ghost" size="sm" onClick={() => updatePrint(p.id, { artworkFiles: [] })}>Clear</Button>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-[200px]">
-                      <Label className="text-xs">Text (optional)</Label>
-                      <Input value={p.customText || ''} onChange={(e) => updatePrint(p.id, { customText: e.target.value })} placeholder="Custom text for this placement" />
-                    </div>
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button type="button" variant="ghost" size="icon" onClick={() => updatePrint(p.id, { active: !p.active })} aria-label="Toggle visibility">
-                        {p.active ? <Eye className="w-4 h-4"/> : <EyeOff className="w-4 h-4"/>}
-                      </Button>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => duplicatePrint(p.id)} disabled={prints.length >= 4} aria-label="Duplicate">
-                        <Copy className="w-4 h-4"/>
-                      </Button>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removePrint(p.id)} aria-label="Remove">
-                        <Trash2 className="w-4 h-4 text-destructive"/>
-                      </Button>
-                    </div>
-                  </div>
+                  <PlacementEditor
+                    placement={p}
+                    placements={placements}
+                    artworkFiles={artworkFiles}
+                    onUpdate={updatePrint}
+                    onDuplicate={duplicatePrint}
+                    onRemove={removePrint}
+                  />
                 </div>
               ))}
             </div>
@@ -647,8 +791,15 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                   onMouseUp={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
                   onMouseLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
                 >
-                  {/* Garment mockup with true side sleeve view */}
-                  <GarmentMockup type={garmentType} view={selectedView} color={colorSwatches[selectedBaseColor]} />
+                  {/* Garment mockup with per-view uploaded image URLs (no SVG or generic fallbacks) */}
+                  <GarmentMockup
+                    type={garmentType}
+                    view={selectedView}
+                    color={colorSwatches[selectedBaseColor]}
+                    frontUrl={selectedVariant?.front_image_url || undefined}
+                    backUrl={selectedVariant?.back_image_url || undefined}
+                    sleeveUrl={selectedVariant?.sleeve_image_url || undefined}
+                  />
                   {/* Print overlays for current view */}
                   {prints.filter(p => matchView(p.location, selectedView)).filter(p => p.active).map((p) => (
                     <div
@@ -816,7 +967,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
         <div className="bg-card-secondary rounded-lg p-6">
           <h3 className="font-medium text-foreground mb-4">Order Summary</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Product:</span><span>{selectedProduct ? products[selectedProduct as keyof typeof products].name : 'None selected'}</span></div>
+            <div className="flex justify-between"><span>Product:</span><span>{selectedProduct ? (productMap[selectedProduct]?.name || 'Unknown') : 'None selected'}</span></div>
             <div className="flex justify-between"><span>Quantity:</span><span>{quantity} pieces</span></div>
             <div className="flex justify-between"><span>Print Colors:</span><span>{selectedColors.length} selected</span></div>
             <div className="flex justify-between"><span>Sizes:</span><span>{Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)} total</span></div>
@@ -921,6 +1072,27 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
           )}
         </div>
         {Content}
+        {/* Spacer to avoid sticky bar overlap on mobile */}
+        <div className="h-16 md:hidden" />
+
+        {/* Sticky mobile summary bar */}
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Qty × Unit</span>
+              <span className="text-sm font-medium">
+                {quantity} × ${priceBreakdown?.unitPrice?.toFixed(2) ?? '0.00'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs text-muted-foreground">Total</span>
+              <span className="text-base font-semibold">${price.toFixed(2)}</span>
+            </div>
+            <Button className="ml-auto" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}>
+              Review Quote
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -929,7 +1101,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     <>
       <Button variant="hero" size="lg" onClick={() => navigate('/customize')}>
         <Calculator className="w-4 h-4" />
-        Customize Product
+        Design & get quote
       </Button>
 
       {/* Confirmation CTA to create account */}

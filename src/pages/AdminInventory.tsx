@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useProfile } from "@/lib/profile";
@@ -9,10 +9,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Plus, Search } from "lucide-react";
+import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { serverErrorMessage } from "@/lib/errors";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ProductRow {
   id: string;
@@ -31,6 +42,7 @@ interface ProductRow {
 export default function AdminInventory() {
   const navigate = useNavigate();
   const { data: profile, isLoading: loadingProfile } = useProfile();
+  const qc = useQueryClient();
 
   // Simple guard: only admins can view
   const isAdmin = profile?.role === "admin";
@@ -66,6 +78,45 @@ export default function AdminInventory() {
     },
   });
 
+  // Note: active flag currently lives in customization_options.active in this schema
+
+  // Mutation to delete a product (variants cascade via FK)
+  const deleteProduct = useMutation({
+    mutationFn: async (productId: string) => {
+      console.log('Attempting to delete product:', productId);
+      const { error, data } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
+      console.log('Delete result:', { error, data });
+      if (error) {
+        console.error('Delete error details:', error);
+        throw error;
+      }
+      return data;
+    },
+    onMutate: async (productId: string) => {
+      const key = ["admin-inventory", { page, pageSize }];
+      await qc.cancelQueries({ queryKey: key as any });
+      const prev = qc.getQueryData(key as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
+      if (prev) {
+        const rows = prev.rows.filter(r => r.id !== productId);
+        const next = { ...prev, rows, total: Math.max(0, (prev.total || 1) - 1) };
+        qc.setQueryData(key as any, next);
+      }
+      return { prev } as const;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-inventory"] as any });
+      qc.invalidateQueries({ queryKey: ["catalog-products"] as any });
+      toast({ title: "Deleted", description: "Product removed." });
+    },
+    onError: (err: any, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["admin-inventory", { page, pageSize }] as any, ctx.prev);
+      toast({ title: "Delete failed", description: serverErrorMessage(err, 'Unable to delete product'), variant: "destructive" as any });
+    }
+  });
+
   const filtered = useMemo(() => {
     const rows = data?.rows || [];
     const q = query.trim().toLowerCase();
@@ -96,6 +147,37 @@ export default function AdminInventory() {
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / pageSize));
 
   const { toast } = useToast();
+
+  // Mutation to update product fields (name, description, etc.)
+  const updateProduct = useMutation({
+    mutationFn: async (args: { productId: string; updates: Record<string, any> }) => {
+      const { productId, updates } = args;
+      const { error } = await supabase
+        .from("products")
+        .update(updates)
+        .eq("id", productId);
+      if (error) throw error;
+    },
+    onMutate: async ({ productId, updates }) => {
+      const key = ["admin-inventory", { page, pageSize }];
+      await qc.cancelQueries({ queryKey: key as any });
+      const prev = qc.getQueryData(key as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
+      if (prev) {
+        const rows = prev.rows.map(r => r.id === productId ? { ...r, ...updates } : r);
+        qc.setQueryData(key as any, { ...prev, rows });
+      }
+      return { prev } as const;
+    },
+    onSuccess: () => {
+      refetch();
+      qc.invalidateQueries({ queryKey: ["catalog-products"] as any });
+      toast({ title: "Saved", description: "Product updated successfully." });
+    },
+    onError: (err: any, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["admin-inventory", { page, pageSize }] as any, ctx.prev);
+      toast({ title: "Save failed", description: serverErrorMessage(err, 'Unable to save changes'), variant: "destructive" as any });
+    }
+  });
 
   // Mutation to update customization_options for a product
   const updateOptions = useMutation({
@@ -130,11 +212,28 @@ export default function AdminInventory() {
         .eq("id", productId);
       if (updErr) throw updErr;
     },
+    onMutate: async ({ productId, patch }) => {
+      const key = ["admin-inventory", { page, pageSize }];
+      await qc.cancelQueries({ queryKey: key as any });
+      const prev = qc.getQueryData(key as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
+      if (prev) {
+        const rows = prev.rows.map(r => {
+          if (r.id !== productId) return r;
+          const baseOpts = (r.customization_options && typeof r.customization_options === 'object') ? r.customization_options : {};
+          return { ...r, customization_options: { ...baseOpts, ...patch } } as ProductRow;
+        });
+        qc.setQueryData(key as any, { ...prev, rows });
+      }
+      return { prev } as const;
+    },
     onSuccess: () => {
-      refetch();
+      // Ensure freshness and also refresh related caches
+      qc.invalidateQueries({ queryKey: ["admin-inventory"] as any });
+      qc.invalidateQueries({ queryKey: ["catalog-products"] as any });
       toast({ title: "Saved", description: "Inventory updated successfully." });
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["admin-inventory", { page, pageSize }] as any, ctx.prev);
       toast({ title: "Save failed", description: serverErrorMessage(err, 'Unable to save changes'), variant: "destructive" as any });
     }
   });
@@ -152,7 +251,7 @@ export default function AdminInventory() {
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Refresh
             </Button>
-            <Button>
+            <Button onClick={() => navigate("/admin/inventory/new")}>
               <Plus className="h-4 w-4 mr-2" />
               New Product
             </Button>
@@ -219,7 +318,22 @@ export default function AdminInventory() {
                   return (
                   <TableRow key={p.id}>
                     <TableCell>
-                      <div className="font-medium">{p.name}</div>
+                      <Input
+                        defaultValue={p.name}
+                        className="font-medium border-none p-0 h-auto bg-transparent focus:bg-background focus:border-input"
+                        disabled={updateProduct.isPending}
+                        onBlur={(e) => {
+                          const newName = e.currentTarget.value.trim();
+                          if (newName && newName !== p.name) {
+                            updateProduct.mutate({ productId: p.id, updates: { name: newName } });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                      />
                       <div className="text-xs text-muted-foreground line-clamp-1">{p.description}</div>
                     </TableCell>
                     <TableCell>{p.category || "-"}</TableCell>
@@ -286,6 +400,30 @@ export default function AdminInventory() {
                       <Button variant="ghost" size="sm" onClick={() => navigate(`/orders/new?productId=${p.id}`)}>
                         Create Order
                       </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" disabled={deleteProduct.isPending}>
+                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete product?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove the product and its variants. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => deleteProduct.mutate(p.id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                   );

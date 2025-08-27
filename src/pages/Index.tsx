@@ -1,5 +1,6 @@
 import Navigation from "@/components/Navigation";
 import HeroSection from "@/components/HeroSection";
+import { BusinessReviews } from "@/components/BusinessReviews";
 import FeaturesSection from "@/components/FeaturesSection";
 import ProductCatalog from "@/components/ProductCatalog";
 import PricingCalculator from "@/components/PricingCalculator";
@@ -11,6 +12,7 @@ const Index = () => {
       
       <Navigation />
       <HeroSection />
+      <BusinessReviews />
       
       {/* Core Platform Features for Organizations & Businesses */}
       <ProductCatalog />

@@ -71,19 +71,28 @@ const Navigation = () => {
                   {user.user_metadata?.company_name || user.email}
                 </span>
               </div>
-              {/* Admin quick link */}
+              {/* Admin quick links */}
               {profile?.role === 'admin' ? (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => navigate('/admin/inventory')}
-                >
-                  Admin
-                </Button>
+                <div className="hidden md:flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => navigate('/admin/inventory')}
+                  >
+                    Inventory
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => navigate('/admin/orders')}
+                  >
+                    Orders
+                  </Button>
+                </div>
               ) : null}
               <Button variant="ghost" size="lg" onClick={handleSignOut} className="hidden md:inline-flex">
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                Sign out
               </Button>
               <Button 
                 variant="outline" 
@@ -106,11 +115,11 @@ const Navigation = () => {
           ) : (
             <>
               <AuthDialog 
-                trigger={<Button variant="ghost" size="lg" className="hidden md:inline-flex">Sign In</Button>}
+                trigger={<Button variant="ghost" size="lg" className="hidden md:inline-flex">Sign in</Button>}
                 defaultTab="signin"
               />
               <AuthDialog 
-                trigger={<Button variant="hero" size="lg" className="hidden md:inline-flex">Get Started</Button>}
+                trigger={<Button variant="hero" size="lg" className="hidden md:inline-flex">Get started</Button>}
                 defaultTab="signup"
               />
             </>
@@ -168,15 +177,26 @@ const Navigation = () => {
               {user ? (
                 <div className="grid gap-2 p-1">
                   {profile?.role === 'admin' ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setOpen(false);
-                        navigate('/admin/inventory');
-                      }}
-                    >
-                      Admin
-                    </Button>
+                    <div className="grid gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setOpen(false);
+                          navigate('/admin/inventory');
+                        }}
+                      >
+                        Inventory
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setOpen(false);
+                          navigate('/admin/orders');
+                        }}
+                      >
+                        Orders
+                      </Button>
+                    </div>
                   ) : null}
                   <Button
                     variant="ghost"
@@ -186,7 +206,7 @@ const Navigation = () => {
                     }}
                   >
                     <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
+                    Sign out
                   </Button>
                   <Button
                     variant="outline"
@@ -211,11 +231,11 @@ const Navigation = () => {
               ) : (
                 <div className="grid gap-2 p-1">
                   <AuthDialog
-                    trigger={<Button variant="ghost">Sign In</Button>}
+                    trigger={<Button variant="ghost">Sign in</Button>}
                     defaultTab="signin"
                   />
                   <AuthDialog
-                    trigger={<Button variant="hero">Get Started</Button>}
+                    trigger={<Button variant="hero">Get started</Button>}
                     defaultTab="signup"
                   />
                 </div>
