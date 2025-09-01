@@ -251,7 +251,7 @@ export default function AdminInventory() {
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Refresh
             </Button>
-            <Button onClick={() => navigate("/admin/inventory/new")}>
+            <Button onClick={() => navigate("/admin/inventory/new", { state: { from: "/admin/inventory" } })}>
               <Plus className="h-4 w-4 mr-2" />
               New Product
             </Button>
@@ -393,7 +393,7 @@ export default function AdminInventory() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => navigate(`/admin/inventory/${p.id}`)}
+                        onClick={() => navigate(`/admin/inventory/${p.id}`, { state: { from: "/admin/inventory" } })}
                       >
                         Edit
                       </Button>

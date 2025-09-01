@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/lib/profile";
@@ -51,6 +51,7 @@ interface ProductionUpdate {
 export default function AdminOrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation() as { state?: { from?: string } };
   const qc = useQueryClient();
   const { data: profile, isLoading: loadingProfile } = useProfile();
   const { toast } = useToast();
@@ -121,7 +122,7 @@ export default function AdminOrderDetail() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
         <p className="text-muted-foreground">Order not found.</p>
-        <Button onClick={() => navigate("/admin/orders")}>Back</Button>
+        <Button onClick={() => navigate(location.state?.from || "/admin/orders", { replace: true })}>Back</Button>
       </div>
     );
   }
@@ -130,7 +131,16 @@ export default function AdminOrderDetail() {
     <div className="min-h-screen">
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/admin/orders")}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate(location.state?.from || "/admin/orders", { replace: true });
+              }
+            }}
+          >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <div>
