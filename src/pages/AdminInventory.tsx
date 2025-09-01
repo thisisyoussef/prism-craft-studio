@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -147,6 +147,13 @@ export default function AdminInventory() {
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / pageSize));
 
   const { toast } = useToast();
+
+  // Ensure we start at the top when the page changes
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    } catch {}
+  }, [page]);
 
   // Mutation to update product fields (name, description, etc.)
   const updateProduct = useMutation({
