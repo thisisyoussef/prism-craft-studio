@@ -5,22 +5,36 @@ import FeaturesSection from "@/components/FeaturesSection";
 import ProductCatalog from "@/components/ProductCatalog";
 import PricingCalculator from "@/components/PricingCalculator";
 import SampleOrdering from "@/components/SampleOrdering";
+import { ScrollReveal } from "@/components/ScrollReveal";
 
 const Index = () => {
   return (
     <div className="relative min-h-screen bg-background">
-      
       <Navigation />
-      <HeroSection />
-      <BusinessReviews />
-      
+
+      <ScrollReveal variant="fade-up" distancePx={28}>
+        <HeroSection />
+      </ScrollReveal>
+
+      <ScrollReveal variant="fade-up" delayMs={80}>
+        <BusinessReviews />
+      </ScrollReveal>
+
       {/* Core Platform Features for Organizations & Businesses */}
-      <ProductCatalog />
-      <PricingCalculator />
-      <SampleOrdering />
-      
+      <ScrollReveal variant="fade-up" delayMs={120}>
+        <ProductCatalog />
+      </ScrollReveal>
+      <ScrollReveal variant="fade-up" delayMs={160}>
+        <PricingCalculator />
+      </ScrollReveal>
+      <ScrollReveal variant="fade-up" delayMs={200}>
+        <SampleOrdering />
+      </ScrollReveal>
+
       <div className="relative z-10 px-6 max-w-6xl mx-auto">
-        <FeaturesSection />
+        <ScrollReveal variant="fade-up" delayMs={240}>
+          <FeaturesSection />
+        </ScrollReveal>
       </div>
     </div>
   );
