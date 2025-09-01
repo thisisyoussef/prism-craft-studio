@@ -255,7 +255,7 @@ export default function AdminOrders() {
           <p className="text-sm text-muted-foreground">Monitor and manage orders</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader><CardTitle>Total Orders</CardTitle></CardHeader>
             <CardContent className="text-2xl font-semibold">{kpis.count}</CardContent>
@@ -274,11 +274,11 @@ export default function AdminOrders() {
           </Card>
         </div>
 
-        <div className="flex flex-wrap gap-3 items-end mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end mb-4">
           <div>
             <label className="text-xs text-muted-foreground">Status</label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="All statuses" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="All statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 {statuses.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
@@ -287,31 +287,31 @@ export default function AdminOrders() {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Customer</label>
-            <Input value={customer} onChange={(e) => setCustomer(e.currentTarget.value)} placeholder="Search..." className="w-56" />
+            <Input value={customer} onChange={(e) => setCustomer(e.currentTarget.value)} placeholder="Search..." className="w-full" />
           </div>
           {/* TODO: Add proper date range picker UI. For now, manual ISO input placeholders. */}
           <div>
             <label className="text-xs text-muted-foreground">From</label>
-            <Input type="datetime-local" onChange={(e) => setRange((r) => ({ ...(r||{}), from: e.currentTarget.value ? new Date(e.currentTarget.value) : undefined }))} />
+            <Input className="w-full" type="datetime-local" onChange={(e) => setRange((r) => ({ ...(r||{}), from: e.currentTarget.value ? new Date(e.currentTarget.value) : undefined }))} />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">To</label>
-            <Input type="datetime-local" onChange={(e) => setRange((r) => ({ ...(r||{}), to: e.currentTarget.value ? new Date(e.currentTarget.value) : undefined }))} />
+            <Input className="w-full" type="datetime-local" onChange={(e) => setRange((r) => ({ ...(r||{}), to: e.currentTarget.value ? new Date(e.currentTarget.value) : undefined }))} />
           </div>
         </div>
 
-        <div className="border rounded-md">
+        <div className="border rounded-md overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Order #</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead className="hidden md:table-cell">Product</TableHead>
+                <TableHead className="hidden md:table-cell">Qty</TableHead>
+                <TableHead className="hidden md:table-cell">Total</TableHead>
+                <TableHead className="hidden md:table-cell">Created</TableHead>
+                <TableHead className="hidden md:table-cell">Details</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -336,11 +336,11 @@ export default function AdminOrders() {
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell>{o.product?.name || productsMap[o.product_id as string]?.name || o.product_id || '—'}</TableCell>
-                    <TableCell>{o.quantity}</TableCell>
-                    <TableCell>${Number(o.total_amount || 0).toFixed(2)}</TableCell>
-                    <TableCell>{format(new Date(o.created_at), 'yyyy-MM-dd')}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">{o.product?.name || productsMap[o.product_id as string]?.name || o.product_id || '—'}</TableCell>
+                    <TableCell className="hidden md:table-cell">{o.quantity}</TableCell>
+                    <TableCell className="hidden md:table-cell">${Number(o.total_amount || 0).toFixed(2)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{format(new Date(o.created_at), 'yyyy-MM-dd')}</TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <div className="flex flex-col gap-1">
                         <div className="flex flex-wrap gap-1">
                           {(o.labels || []).map((lab, i) => (
@@ -352,7 +352,7 @@ export default function AdminOrders() {
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
                       <div className="flex items-center gap-2 justify-end">
                         <Button variant="outline" size="sm" onClick={() => openEdit(o)}>Edit</Button>
                         <Button size="sm" onClick={() => navigate(`/admin/orders/${o.id}`)}>View</Button>
