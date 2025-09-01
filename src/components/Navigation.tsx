@@ -261,7 +261,7 @@ const Navigation = () => {
     {/* Spacer to offset fixed nav height */}
     <div className="h-16 md:h-20" aria-hidden="true" />
     {/* Bottom mobile navigation */}
-    <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+    <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 hidden md:hidden">
       <div className="grid grid-cols-5">
         <Link to="/" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
           <Home className="h-5 w-5" />
