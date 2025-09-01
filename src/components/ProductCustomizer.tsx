@@ -715,8 +715,8 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
           <div className="bg-muted/30 rounded-md">
             <AspectRatio ratio={1}>
               <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                <div ref={viewerRef} className="relative select-none" style={{ transform: `scale(${zoom})` }}
-                  onMouseMove={(e) => {
+                <div ref={viewerRef} className="relative select-none touch-none" style={{ transform: `scale(${zoom})` }}
+                  onPointerMove={(e) => {
                     // store latest mouse and schedule one RAF update to reduce jitter
                     pendingEvent.current = { x: e.clientX, y: e.clientY }
                     if (rafId.current != null) return
@@ -788,8 +788,9 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                       }
                     })
                   }}
-                  onMouseUp={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
-                  onMouseLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
+                  onPointerUp={(e) => { try { viewerRef.current?.releasePointerCapture?.(e.pointerId) } catch {}; setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
+                  onPointerLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
+                  onPointerCancel={(e) => { try { viewerRef.current?.releasePointerCapture?.(e.pointerId) } catch {}; setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
                 >
                   {/* Garment mockup with per-view uploaded image URLs (no SVG or generic fallbacks) */}
                   <GarmentMockup
@@ -804,10 +805,11 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                   {prints.filter(p => matchView(p.location, selectedView)).filter(p => p.active).map((p) => (
                     <div
                       key={p.id}
-                      className="absolute text-[10px] text-foreground cursor-move group"
+                      className="absolute text-[10px] text-foreground cursor-move group touch-none"
                       style={overlayStyleFor(p, bounds)}
-                      onMouseDown={(e) => {
+                      onPointerDown={(e) => {
                         e.preventDefault()
+                        try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}
                         setDragging({ id: p.id })
                       }}
                       onDragOver={(e) => { e.preventDefault() }}
@@ -861,14 +863,14 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                                   <div
                                     key={corner}
                                     className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                   />
                                 ))}
                                 {/* Rotation handle and angle badge (top-center) */}
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                 <div
                                   className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}; setRotating({ id: p.id }) }}
                                   title="Rotate"
                                 />
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -898,13 +900,13 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                                   <div
                                     key={corner}
                                     className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                   />
                                 ))}
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                 <div
                                   className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}; setRotating({ id: p.id }) }}
                                   title="Rotate"
                                 />
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -920,13 +922,13 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                                 <div
                                   key={corner}
                                   className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                 />
                               ))}
                               <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                               <div
                                 className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { viewerRef.current?.setPointerCapture?.(e.pointerId) } catch {}; setRotating({ id: p.id }) }}
                                 title="Rotate"
                               />
                               <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
