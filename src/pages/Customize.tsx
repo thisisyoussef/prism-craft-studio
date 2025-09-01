@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
 import ProductCustomizer from "@/components/ProductCustomizer";
 
 const Customize = () => {
@@ -12,6 +13,8 @@ const Customize = () => {
         </div>
         <ProductCustomizer mode="page" />
       </div>
+      <div className="h-16 md:hidden" aria-hidden="true" />
+      <Footer />
     </div>
   );
 };

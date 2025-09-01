@@ -19,6 +19,7 @@ import AdminProductEditor from "./pages/AdminProductEditor";
 import AdminOrders from "./pages/AdminOrders";
 import AdminOrderDetail from "./pages/AdminOrderDetail";
 import Settings from "./pages/Settings";
+// Footer rendered per-page
 
 const queryClient = new QueryClient();
 
