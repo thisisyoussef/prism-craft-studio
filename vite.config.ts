@@ -38,4 +38,32 @@ export default defineConfig(({ mode }) => ({
     ),
   },
   assetsInclude: ["**/*.jpeg", "**/*.JPEG", "**/*.jpg", "**/*.JPG"],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['src/test/setup.ts'],
+    css: true,
+    globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      include: [
+        'src/pages/**/*.{ts,tsx}',
+        'src/App.tsx',
+        'src/main.tsx',
+      ],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/__tests__/**',
+        'src/test/**',
+        'src/vite-env.d.ts',
+        'supabase/**',
+        '**/*.config.*',
+      ],
+      all: true,
+      statements: 0.9,
+      branches: 0.9,
+      functions: 0.9,
+      lines: 0.9,
+    },
+  },
 }));
