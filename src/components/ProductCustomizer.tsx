@@ -17,7 +17,7 @@ import { Slider } from '@/components/ui/slider'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAuthStore, useOrderStore, usePricingStore, useGuestStore, type PrintPlacement, type PrintLocation, type PrintMethod } from '@/lib/store'
-import { Upload, FileText, Calculator, ZoomIn, ZoomOut, Images, Plus, Copy, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Calculator, ZoomIn, ZoomOut, Images, Plus, Copy, Trash2, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import AuthDialog from './AuthDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
@@ -102,7 +102,6 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
   const [zoom, setZoom] = useState<number>(1)
   const [sizesQty, setSizesQty] = useState<Record<string, number>>({})
   const [artworkFiles, setArtworkFiles] = useState<File[]>([])
-  const [customText, setCustomText] = useState('')
   const [notes, setNotes] = useState('')
 
   const { user } = useAuthStore()
@@ -674,13 +673,13 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Quantity</span>
+                  <span className="text-sm font-medium">Total</span>
                   <div className="inline-flex items-center gap-1">
-                    <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity - 1)}>-1</Button>
-                    <Input aria-label="Total Quantity" type="number" min={0} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '0'))} className="w-20 text-center" />
-                    <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 1)}>+1</Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 10)}>+10</Button>
-                    <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity)}>Apply</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity - 10)}>−10</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity - 1)}>−1</Button>
+                    <Input aria-label="Total Quantity" type="number" min={0} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '0'))} className="w-24 text-center" />
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity + 1)}>+1</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity + 10)}>+10</Button>
                   </div>
                 </div>
                 <div className="min-w-[180px] flex-1">
@@ -701,10 +700,6 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
         {showOrderOnly && (
           <>
             <div className="space-y-3">
-              <Label>Custom Text (Optional)</Label>
-              <Input value={customText} onChange={(e) => setCustomText(e.target.value)} placeholder="Enter text to be printed" />
-            </div>
-            <div className="space-y-3">
               <Label>Special Instructions</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requirements or notes..." className="min-h-[100px]" />
             </div>
@@ -714,10 +709,11 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
 
       {/* Right: Visual + Specs + Summary */}
       <div className="space-y-6">
-        {/* Mockup Viewer */}
+        {/* Mockup Viewer (Design step only) */}
+        {showDesign && (
         <div className="rounded-lg border p-4">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Images className="w-4 h-4"/> Mockup Viewer</div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Images className="w-4 h-4"/> Mockup</div>
             <Tabs value={selectedView} onValueChange={(v) => setSelectedView(v as any)}>
               <TabsList>
                 <TabsTrigger value="front">Front</TabsTrigger>
@@ -958,12 +954,13 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
             </AspectRatio>
           </div>
           <div className="mt-3 flex items-center gap-3">
-            <Button type="button" variant="outline" size="icon" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)))} aria-label="Zoom out"><ZoomOut className="w-4 h-4"/></Button>
+            <Button type="button" variant="secondary" size="icon" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)))} aria-label="Zoom out"><ZoomOut className="w-4 h-4"/></Button>
             <Slider value={[zoom]} onValueChange={(v) => setZoom(Number(v[0]))} min={0.5} max={2} step={0.1} className="w-40" />
-            <Button type="button" variant="outline" size="icon" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))} aria-label="Zoom in"><ZoomIn className="w-4 h-4"/></Button>
+            <Button type="button" variant="secondary" size="icon" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))} aria-label="Zoom in"><ZoomIn className="w-4 h-4"/></Button>
             <div className="text-xs text-muted-foreground">{Math.round(zoom * 100)}%</div>
           </div>
         </div>
+        )}
 
         {/* Material Specifications */}
         <div className="rounded-lg border p-4">
@@ -1026,7 +1023,6 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
                           sizes: sizesQty,
                           customization_prints: prints.map(p => ({ id: p.id, location: p.location, method: p.method, colors: p.colors, colorCount: p.colorCount, size: p.size, position: p.position, rotationDeg: p.rotationDeg, customText: p.customText, notes: p.notes })),
                           artwork_files: artworkFiles.map(f => f.name),
-                          custom_text: customText,
                           notes,
                           quantity,
                         },
@@ -1063,32 +1059,7 @@ const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) =>
   if (mode === 'page') {
     return (
       <div className="space-y-6">
-        {/* Uploader at top only on Design step */}
-        {showDesign && (
-          <div className="space-y-3">
-            <Label>Artwork Upload</Label>
-            <div className="border-2 border-dashed border-primary/20 rounded-lg p-6 text-center">
-              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm font-medium text-foreground mb-1">Upload Your Design Files</p>
-              <p className="text-xs text-muted-foreground mb-3">JPG, PNG, PDF, AI, EPS files up to 5MB each</p>
-              <input type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.ai,.eps" onChange={handleFileUpload} className="hidden" id="file-upload" />
-              <Button variant="outline" size="sm" asChild>
-                <label htmlFor="file-upload" className="cursor-pointer">Choose Files</label>
-              </Button>
-            </div>
-            {artworkFiles.length > 0 && (
-              <div className="space-y-2">
-                <Label>Uploaded Files</Label>
-                {artworkFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded">
-                    <div className="flex items-center gap-2"><FileText className="w-4 h-4" /><span className="text-sm">{file.name}</span></div>
-                    <Button variant="ghost" size="sm" onClick={() => removeFile(index)}>Remove</Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Artwork upload removed; handled in print placements */}
         {Content}
         {/* Spacer to avoid sticky bar overlap on mobile */}
         <div className="h-16 md:hidden" />
