@@ -19,7 +19,7 @@ export default function CustomizeOrder() {
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-6">
         <Breadcrumbs />
         <h1 className="text-2xl font-medium mb-4">Order</h1>
-        <ProductCustomizer mode="page" />
+        <ProductCustomizer mode="page" step="order" />
       </div>
     </div>
   )

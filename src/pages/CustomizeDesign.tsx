@@ -19,7 +19,7 @@ export default function CustomizeDesign() {
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-6">
         <Breadcrumbs />
         <h1 className="text-2xl font-medium mb-4">Design</h1>
-        <ProductCustomizer mode="page" />
+        <ProductCustomizer mode="page" step="design" />
       </div>
     </div>
   )
