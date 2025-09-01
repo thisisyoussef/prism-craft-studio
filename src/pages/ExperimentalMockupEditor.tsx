@@ -88,6 +88,7 @@ const ExperimentalMockupEditor = () => {
 	const [chatInput, setChatInput] = useState<string>('')
 	const [variantThumbs, setVariantThumbs] = useState<{ color: string; dataUrl: string }[]>([])
 	const previewRef = useRef<HTMLDivElement | null>(null)
+	const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
 
 	useEffect(() => {
 		;(async () => {
@@ -207,6 +208,26 @@ const ExperimentalMockupEditor = () => {
 		}
 	}
 
+	const handleSend = async () => {
+		const text = chatInput.trim()
+		if (!text) return
+		setChatHistory(h => [...h, { role: 'user', text }])
+		parseChatAndApply(text)
+		setChatInput('')
+		try {
+			if (baseUrl) {
+				const preview = await renderComposite(baseUrl, logo?.url || null, placement, bounds)
+				setChatHistory(h => [...h, { role: 'assistant', image: preview }])
+			} else {
+				setChatHistory(h => [...h, { role: 'assistant', text: 'Applied your request.' }])
+			}
+		} catch {}
+		requestAnimationFrame(() => {
+			const feed = document.getElementById('chat-feed')
+			if (feed) feed.scrollTop = feed.scrollHeight
+		})
+	}
+
 	const buildPlacementSpec = () => {
 		const variant = variants.find(v => (v.color_name || '').toLowerCase() === (color || '').toLowerCase())
 		return {
@@ -241,7 +262,8 @@ const ExperimentalMockupEditor = () => {
 					</Badge>
 				</div>
 
-				<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+				{/* Desktop/tablet editor */}
+				<div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
 					<div className="lg:col-span-4 border rounded-lg">
 						<div className="p-4 border-b">
 							<h2 className="text-sm font-medium">Catalog</h2>
@@ -400,6 +422,77 @@ const ExperimentalMockupEditor = () => {
 						</div>
 					</div>
 				</div>
+
+				{/* Mobile chat-only interface */}
+				<div className="block md:hidden">
+					<div className="space-y-3">
+						<div className="space-y-2">
+							<Label className="text-xs">Product</Label>
+							<Select value={productId} onValueChange={(v) => {
+								setProductId(v)
+								const p = products.find(pr => pr.id === v)
+								setProductCategory(p?.category || null)
+							}}>
+								<SelectTrigger>
+									<SelectValue placeholder="Select product" />
+								</SelectTrigger>
+								<SelectContent>
+									{products.map(p => (
+										<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="space-y-1">
+							<Label className="text-xs">View</Label>
+							<div className="flex gap-2">
+								<Button variant={angle==='front'?'default':'outline'} size="sm" onClick={() => setAngle('front')}>Front</Button>
+								<Button variant={angle==='back'?'default':'outline'} size="sm" onClick={() => setAngle('back')}>Back</Button>
+								<Button variant={angle==='sleeve'?'default':'outline'} size="sm" onClick={() => setAngle('sleeve')}>Sleeve</Button>
+							</div>
+						</div>
+					</div>
+
+					{/* Chat feed */}
+					<div className="mt-4">
+						<div className="h-[calc(100vh-16rem)] overflow-y-auto pr-1" id="chat-feed">
+							<div className="space-y-4">
+								{chatHistory.map((m, idx) => (
+									<div key={idx} className={m.role==='user' ? 'flex justify-end' : 'flex justify-start'}>
+										<div className={`max-w-[80%] rounded-2xl px-3 py-2 border ${m.role==='user'?'bg-primary text-primary-foreground':'bg-muted/40'}`}>
+											{m.text ? (<p className="text-sm whitespace-pre-wrap">{m.text}</p>) : null}
+											{m.image ? (
+												<div className="mt-2 overflow-hidden rounded-lg border">
+													<img src={m.image} className="w-full h-auto" />
+												</div>
+											) : null}
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+
+					{/* Sticky chat input */}
+					<div className="fixed bottom-0 inset-x-0 z-40 border-t bg-background md:hidden">
+						<div className="max-w-6xl mx-auto px-4 py-3 space-y-2">
+							<div className="flex gap-2 overflow-x-auto no-scrollbar">
+								<Button variant="outline" size="sm" onClick={() => setChatInput(prev => (prev ? prev + ' Colors: forest green' : 'Colors: forest green'))}>Colors</Button>
+								<label>
+									<input type="file" className="hidden" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUploadLogo(f) }} />
+									<Button variant="outline" size="sm"><Upload className="h-3.5 w-3.5 mr-1" />Add Logo</Button>
+								</label>
+								<Button variant="outline" size="sm" onClick={() => setChatInput(prev => (prev ? prev + ' small crest on left chest' : 'small crest on left chest'))}>Placement</Button>
+								<Button variant="outline" size="sm" onClick={() => setChatInput(prev => (prev ? prev + ' generate 6 colorways' : 'generate 6 colorways'))}>Variants</Button>
+								<Button variant="outline" size="sm" onClick={() => setChatInput(prev => (prev ? prev + ' neutral studio background' : 'neutral studio background'))}>Background</Button>
+							</div>
+							<div className="flex items-center gap-2">
+								<Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Message the editor" onKeyDown={async (e) => { if (e.key==='Enter') { await handleSend(); } }} />
+								<Button onClick={handleSend}>Send</Button>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	)
@@ -469,4 +562,6 @@ function downloadBlob(blob: Blob, filename: string) {
 	downloadDataUrl(url, filename)
 	setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+type ChatMessage = { role: 'user' | 'assistant'; text?: string; image?: string }
 
