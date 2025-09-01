@@ -22,6 +22,9 @@ import AdminOrderDetail from "./pages/AdminOrderDetail";
 import Settings from "./pages/Settings";
 import CaseStudies from "./pages/CaseStudies";
 import CaseStudyArticle from "./pages/CaseStudyArticle";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import SiteFooter from "@/components/SiteFooter";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +48,8 @@ const App = () => (
           <Route path="/case-studies" element={<CaseStudies />} />
           <Route path="/case-studies/:slug" element={<CaseStudyArticle />} />
           <Route path="/orders/:id" element={<OrderDetails />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/inventory/new" element={<AdminNewProduct />} />
           <Route path="/admin/inventory/:productId" element={<AdminProductEditor />} />
@@ -53,6 +58,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <SiteFooter />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

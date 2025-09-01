@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -162,7 +163,9 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
         </Tabs>
 
         <div className="text-center text-sm text-muted-foreground">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
+          By continuing, you agree to our{' '}
+          <Link to="/terms" className="underline hover:text-foreground">Terms of Service</Link>{' '}and{' '}
+          <Link to="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>.
         </div>
       </DialogContent>
     </Dialog>
