@@ -31,9 +31,11 @@ import { useNavigate } from 'react-router-dom'
 import GarmentMockup, { type GarmentType } from './GarmentMockups'
 
 type CustomizerMode = 'dialog' | 'page'
+type StepKind = 'design' | 'quantities' | 'order'
 
 interface ProductCustomizerProps {
   mode?: CustomizerMode
+  step?: StepKind
 }
 
 // Helper: does a print location belong to the currently selected mockup view?
@@ -91,7 +93,7 @@ function overlayStyleFor(p: PrintPlacement, bounds: Bounds): CSSProperties {
 
 // removed inline ShirtMockup in favor of reusable GarmentMockup
 
-const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
+const ProductCustomizer = ({ mode = 'dialog', step }: ProductCustomizerProps) => {
   const navigate = useNavigate()
   const [selectedProduct, setSelectedProduct] = useState('')
   const [selectedColors, setSelectedColors] = useState<string[]>([])
@@ -523,179 +525,191 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
   // Inline SVG mockup replaces external placeholder
 
+  const showDesign = step === 'design' || !step
+  const showQuantitiesOnly = step === 'quantities'
+  const showOrderOnly = step === 'order'
+
   const Content = (
     <div className="grid xl:grid-cols-2 gap-8">
       {/* Left: Configuration Panel */}
       <div className="space-y-6">
-        {/* Product Selection */}
-        <div className="space-y-3">
-          <Label>Product Type *</Label>
-          <Select 
-            value={selectedProduct} 
-            onValueChange={(value) => {
-              setSelectedProduct(value)
-              updateProductType(value)
-              setValue('productId', value, { shouldValidate: true })
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a product" />
-            </SelectTrigger>
-            <SelectContent>
-              {products.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name} {typeof p.base_price === 'number' ? `- $${p.base_price}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {formState.errors.productId?.message && (
-            <div className="text-xs text-destructive">{formState.errors.productId.message}</div>
-          )}
-        </div>
-
-        
-
-        {/* Color Selection */}
-        <div className="space-y-3">
-          <Label>Garment Base Color</Label>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(colorSwatches).map(([name, hex]) => (
-              <button
-                key={name}
-                type="button"
-                className={`w-8 h-8 rounded-full border ${selectedBaseColor === name ? 'ring-2 ring-primary' : 'border-border'}`}
-                style={{ backgroundColor: hex }}
-                onClick={() => setSelectedBaseColor(name)}
-                aria-label={name}
-                title={name}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Print Colors */}
-        <div className="space-y-3">
-          <Label>Print Colors * ({selectedColors.length} selected)</Label>
-          <div className="flex flex-wrap gap-3">
-            {colors.map((color) => (
-              <div key={color} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={`w-7 h-7 rounded-full border ${selectedColors.includes(color) ? 'ring-2 ring-primary' : 'border-border'}`}
-                  style={{ backgroundColor: colorSwatches[color] }}
-                  onClick={() => toggleColor(color)}
-                  aria-label={color}
-                  title={color}
-                />
-                <span className="text-xs">{color}</span>
-              </div>
-            ))}
-          </div>
-          {formState.errors.selectedColors?.message && (
-            <div className="text-xs text-destructive">{formState.errors.selectedColors.message}</div>
-          )}
-        </div>
-
-        {/* Sizes with quantities */}
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Label>Sizes *</Label>
-            <div className="flex items-center gap-2">
-              <DistributionToggle value={distMode} onChange={(v) => setDistMode(v)} />
-              <Button type="button" variant="ghost" size="sm" onClick={clearAllSizes}>Clear</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => evenSplitToMin(50)}>Even 50</Button>
-              <Button type="button" variant="outline" size="sm" onClick={applyCommonRun}>S–XL Pack</Button>
-            </div>
-          </div>
-          <SizeChips
-            sizes={(availableSizes.length ? availableSizes : fallbackSizes)}
-            quantities={sizesQty}
-            onChange={(s, q) => updateSizeQty(s, q)}
-            onInc={(s) => incrementSize(s)}
-            onDec={(s) => decrementSize(s)}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Quantity</span>
-              <div className="inline-flex items-center gap-1">
-                <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity - 1)}>-1</Button>
-                <Input aria-label="Total Quantity" type="number" min={0} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '0'))} className="w-20 text-center" />
-                <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 1)}>+1</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 10)}>+10</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity)}>Apply</Button>
-              </div>
-            </div>
-            <div className="min-w-[180px] flex-1">
-              {(() => {
-                const total = Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)
-                return <MinProgress total={total} min={50} />
-              })()}
-            </div>
-          </div>
-          {formState.errors.sizesQty?.message && (
-            <div className="text-xs text-destructive">{formState.errors.sizesQty.message}</div>
-          )}
-        </div>
-
-        {/* Customization Method */}
-        <div className="space-y-3">
-          <Label>Customization Method</Label>
-          <Select value={customization} onValueChange={updateCustomization}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="screen-print">Screen Printing (Included)</SelectItem>
-              <SelectItem value="embroidery">Embroidery (Included)</SelectItem>
-              <SelectItem value="vinyl">Vinyl Transfer (Included)</SelectItem>
-              <SelectItem value="dtg">Direct-to-Garment (Included)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Print Placements (multiple) */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label>Print Placements</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addPrintForCurrentView} disabled={prints.length >= 4}>
-              <Plus className="w-4 h-4 mr-1" /> Add Print
-            </Button>
-          </div>
-          {formState.errors.prints?.message && (
-            <div className="text-xs text-destructive">{formState.errors.prints.message}</div>
-          )}
-          {prints.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Add up to 4 prints (front, back, sleeves, etc.).</p>
-          ) : (
+        {/* Product Selection (Design step) */}
+        {(showDesign && !showQuantitiesOnly && !showOrderOnly) && (
+          <>
             <div className="space-y-3">
-              {prints.map((p) => (
-                <div key={p.id} className="border rounded-lg p-3">
-                  <PlacementEditor
-                    placement={p}
-                    placements={placements}
-                    artworkFiles={artworkFiles}
-                    onUpdate={updatePrint}
-                    onDuplicate={duplicatePrint}
-                    onRemove={removePrint}
-                  />
-                </div>
-              ))}
+              <Label>Product Type *</Label>
+              <Select 
+                value={selectedProduct} 
+                onValueChange={(value) => {
+                  setSelectedProduct(value)
+                  updateProductType(value)
+                  setValue('productId', value, { shouldValidate: true })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} {typeof p.base_price === 'number' ? `- $${p.base_price}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formState.errors.productId?.message && (
+                <div className="text-xs text-destructive">{formState.errors.productId.message}</div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Custom Text */}
-        <div className="space-y-3">
-          <Label>Custom Text (Optional)</Label>
-          <Input value={customText} onChange={(e) => setCustomText(e.target.value)} placeholder="Enter text to be printed" />
-        </div>
+            {/* Color Selection */}
+            <div className="space-y-3">
+              <Label>Garment Base Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(colorSwatches).map(([name, hex]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={`w-8 h-8 rounded-full border ${selectedBaseColor === name ? 'ring-2 ring-primary' : 'border-border'}`}
+                    style={{ backgroundColor: hex }}
+                    onClick={() => setSelectedBaseColor(name)}
+                    aria-label={name}
+                    title={name}
+                  />
+                ))}
+              </div>
+            </div>
 
-        {/* Special Instructions */}
-        <div className="space-y-3">
-          <Label>Special Instructions</Label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requirements or notes..." className="min-h-[100px]" />
-        </div>
+            {/* Print Colors */}
+            <div className="space-y-3">
+              <Label>Print Colors * ({selectedColors.length} selected)</Label>
+              <div className="flex flex-wrap gap-3">
+                {colors.map((color) => (
+                  <div key={color} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className={`w-7 h-7 rounded-full border ${selectedColors.includes(color) ? 'ring-2 ring-primary' : 'border-border'}`}
+                      style={{ backgroundColor: colorSwatches[color] }}
+                      onClick={() => toggleColor(color)}
+                      aria-label={color}
+                      title={color}
+                    />
+                    <span className="text-xs">{color}</span>
+                  </div>
+                ))}
+              </div>
+              {formState.errors.selectedColors?.message && (
+                <div className="text-xs text-destructive">{formState.errors.selectedColors.message}</div>
+              )}
+            </div>
+
+            {/* Customization Method */}
+            <div className="space-y-3">
+              <Label>Customization Method</Label>
+              <Select value={customization} onValueChange={updateCustomization}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="screen-print">Screen Printing (Included)</SelectItem>
+                  <SelectItem value="embroidery">Embroidery (Included)</SelectItem>
+                  <SelectItem value="vinyl">Vinyl Transfer (Included)</SelectItem>
+                  <SelectItem value="dtg">Direct-to-Garment (Included)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Print Placements (multiple) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Print Placements</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addPrintForCurrentView} disabled={prints.length >= 4}>
+                  <Plus className="w-4 h-4 mr-1" /> Add Print
+                </Button>
+              </div>
+              {formState.errors.prints?.message && (
+                <div className="text-xs text-destructive">{formState.errors.prints.message}</div>
+              )}
+              {prints.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Add up to 4 prints (front, back, sleeves, etc.).</p>
+              ) : (
+                <div className="space-y-3">
+                  {prints.map((p) => (
+                    <div key={p.id} className="border rounded-lg p-3">
+                      <PlacementEditor
+                        placement={p}
+                        placements={placements}
+                        artworkFiles={artworkFiles}
+                        onUpdate={updatePrint}
+                        onDuplicate={duplicatePrint}
+                        onRemove={removePrint}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Quantities step */}
+        {showQuantitiesOnly && (
+          <>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Label>Sizes *</Label>
+                <div className="flex items-center gap-2">
+                  <DistributionToggle value={distMode} onChange={(v) => setDistMode(v)} />
+                  <Button type="button" variant="ghost" size="sm" onClick={clearAllSizes}>Clear</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => evenSplitToMin(50)}>Even 50</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={applyCommonRun}>S–XL Pack</Button>
+                </div>
+              </div>
+              <SizeChips
+                sizes={(availableSizes.length ? availableSizes : fallbackSizes)}
+                quantities={sizesQty}
+                onChange={(s, q) => updateSizeQty(s, q)}
+                onInc={(s) => incrementSize(s)}
+                onDec={(s) => decrementSize(s)}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Quantity</span>
+                  <div className="inline-flex items-center gap-1">
+                    <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity - 1)}>-1</Button>
+                    <Input aria-label="Total Quantity" type="number" min={0} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '0'))} className="w-20 text-center" />
+                    <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 1)}>+1</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 10)}>+10</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity)}>Apply</Button>
+                  </div>
+                </div>
+                <div className="min-w-[180px] flex-1">
+                  {(() => {
+                    const total = Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)
+                    return <MinProgress total={total} min={50} />
+                  })()}
+                </div>
+              </div>
+              {formState.errors.sizesQty?.message && (
+                <div className="text-xs text-destructive">{formState.errors.sizesQty.message}</div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Order step inputs */}
+        {showOrderOnly && (
+          <>
+            <div className="space-y-3">
+              <Label>Custom Text (Optional)</Label>
+              <Input value={customText} onChange={(e) => setCustomText(e.target.value)} placeholder="Enter text to be printed" />
+            </div>
+            <div className="space-y-3">
+              <Label>Special Instructions</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requirements or notes..." className="min-h-[100px]" />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right: Visual + Specs + Summary */}
@@ -977,6 +991,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             <div className="text-xs text-muted-foreground mt-1">${(price / Math.max(1, quantity)).toFixed(2)} per piece</div>
           </div>
           <div className="mt-4 text-xs text-muted-foreground">💡 40% deposit required • 60% before shipping</div>
+          {showOrderOnly && (
           <div className="mt-4 space-y-2">
             {user ? (
               <>
@@ -1039,6 +1054,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             )}
             <Button variant="outline" className="w-full">Save as Draft</Button>
           </div>
+          )}
         </div>
       </div>
     </div>
@@ -1047,30 +1063,32 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   if (mode === 'page') {
     return (
       <div className="space-y-6">
-        {/* Uploader at top for convenience */}
-        <div className="space-y-3">
-          <Label>Artwork Upload</Label>
-          <div className="border-2 border-dashed border-primary/20 rounded-lg p-6 text-center">
-            <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm font-medium text-foreground mb-1">Upload Your Design Files</p>
-            <p className="text-xs text-muted-foreground mb-3">JPG, PNG, PDF, AI, EPS files up to 5MB each</p>
-            <input type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.ai,.eps" onChange={handleFileUpload} className="hidden" id="file-upload" />
-            <Button variant="outline" size="sm" asChild>
-              <label htmlFor="file-upload" className="cursor-pointer">Choose Files</label>
-            </Button>
-          </div>
-          {artworkFiles.length > 0 && (
-            <div className="space-y-2">
-              <Label>Uploaded Files</Label>
-              {artworkFiles.map((file, index) => (
-                <div key={index} className="flex items-center justify-between p-2 border rounded">
-                  <div className="flex items-center gap-2"><FileText className="w-4 h-4" /><span className="text-sm">{file.name}</span></div>
-                  <Button variant="ghost" size="sm" onClick={() => removeFile(index)}>Remove</Button>
-                </div>
-              ))}
+        {/* Uploader at top only on Design step */}
+        {showDesign && (
+          <div className="space-y-3">
+            <Label>Artwork Upload</Label>
+            <div className="border-2 border-dashed border-primary/20 rounded-lg p-6 text-center">
+              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm font-medium text-foreground mb-1">Upload Your Design Files</p>
+              <p className="text-xs text-muted-foreground mb-3">JPG, PNG, PDF, AI, EPS files up to 5MB each</p>
+              <input type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.ai,.eps" onChange={handleFileUpload} className="hidden" id="file-upload" />
+              <Button variant="outline" size="sm" asChild>
+                <label htmlFor="file-upload" className="cursor-pointer">Choose Files</label>
+              </Button>
             </div>
-          )}
-        </div>
+            {artworkFiles.length > 0 && (
+              <div className="space-y-2">
+                <Label>Uploaded Files</Label>
+                {artworkFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 border rounded">
+                    <div className="flex items-center gap-2"><FileText className="w-4 h-4" /><span className="text-sm">{file.name}</span></div>
+                    <Button variant="ghost" size="sm" onClick={() => removeFile(index)}>Remove</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {Content}
         {/* Spacer to avoid sticky bar overlap on mobile */}
         <div className="h-16 md:hidden" />
