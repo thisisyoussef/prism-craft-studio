@@ -11,6 +11,9 @@ import Pricing from "./pages/Pricing";
 import Samples from "./pages/Samples";
 import Designers from "./pages/Designers";
 import Customize from "./pages/Customize";
+import CustomizeDesign from "./pages/CustomizeDesign";
+import CustomizeQuantities from "./pages/CustomizeQuantities";
+import CustomizeOrder from "./pages/CustomizeOrder";
 import Dashboard from "./pages/Dashboard";
 import OrderDetails from "./pages/OrderDetails";
 import AdminInventory from "./pages/AdminInventory";
@@ -36,6 +39,9 @@ const App = () => (
           <Route path="/samples" element={<Samples />} />
           <Route path="/designers" element={<Designers />} />
           <Route path="/customize" element={<Customize />} />
+          <Route path="/customize/design" element={<CustomizeDesign />} />
+          <Route path="/customize/quantities" element={<CustomizeQuantities />} />
+          <Route path="/customize/order" element={<CustomizeOrder />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/orders/:id" element={<OrderDetails />} />
