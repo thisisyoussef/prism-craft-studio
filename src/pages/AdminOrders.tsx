@@ -355,7 +355,7 @@ export default function AdminOrders() {
                     <TableCell className="text-right">
                       <div className="flex items-center gap-2 justify-end">
                         <Button variant="outline" size="sm" onClick={() => openEdit(o)}>Edit</Button>
-                        <Button size="sm" onClick={() => navigate(`/orders/${o.id}`)}>View</Button>
+                        <Button size="sm" onClick={() => navigate(`/admin/orders/${o.id}`)}>View</Button>
                       </div>
                     </TableCell>
                   </TableRow>
