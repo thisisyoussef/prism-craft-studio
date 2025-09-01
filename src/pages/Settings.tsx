@@ -64,7 +64,7 @@ const Settings = () => {
           email: email || null,
           updated_at: new Date().toISOString(),
         })
-        .eq("user_id", user.id);
+        .eq("id", user.id);
 
       if (error) throw error;
 

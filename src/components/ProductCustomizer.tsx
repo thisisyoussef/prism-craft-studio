@@ -21,7 +21,7 @@ import { Upload, FileText, Calculator, ZoomIn, ZoomOut, Images, Plus, Copy, Tras
 import toast from 'react-hot-toast'
 import AuthDialog from './AuthDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/integrations/supabase/client'
 import { customizerSchema, type CustomizerInput } from '@/lib/validation'
 import { zodErrorMessage } from '@/lib/errors'
 import { useForm } from 'react-hook-form'
