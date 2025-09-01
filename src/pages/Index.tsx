@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
 import HeroSection from "@/components/HeroSection";
 import { BusinessReviews } from "@/components/BusinessReviews";
 import FeaturesSection from "@/components/FeaturesSection";
@@ -22,6 +23,9 @@ const Index = () => {
       <div className="relative z-10 px-6 max-w-6xl mx-auto">
         <FeaturesSection />
       </div>
+      {/* Spacer so the fixed mobile bottom nav doesn't cover the footer */}
+      <div className="h-16 md:hidden" aria-hidden="true" />
+      <Footer />
     </div>
   );
 };

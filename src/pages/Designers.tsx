@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
 import DesignerBooking from "@/components/DesignerBooking";
 
 const Designers = () => {
@@ -8,6 +9,8 @@ const Designers = () => {
       <div className="relative z-10">
         <DesignerBooking />
       </div>
+      <div className="h-16 md:hidden" aria-hidden="true" />
+      <Footer />
     </div>
   );
 };

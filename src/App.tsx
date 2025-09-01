@@ -19,7 +19,7 @@ import AdminProductEditor from "./pages/AdminProductEditor";
 import AdminOrders from "./pages/AdminOrders";
 import AdminOrderDetail from "./pages/AdminOrderDetail";
 import Settings from "./pages/Settings";
-import Footer from "@/components/Footer";
+// Footer rendered per-page
 
 const queryClient = new QueryClient();
 
@@ -48,9 +48,6 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-        {/* Spacer so the fixed mobile bottom nav doesn't cover the footer */}
-        <div className="h-16 md:hidden" aria-hidden="true" />
-        <Footer />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
