@@ -3,6 +3,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import ArtworkUploader from '@/components/customizer/ArtworkUploader'
 import { Eye, EyeOff, Copy, Trash2 } from 'lucide-react'
 import type { PrintPlacement, PrintLocation, PrintMethod } from '@/lib/store'
 
@@ -56,7 +57,25 @@ export default function PlacementEditor({ placement: p, placements, artworkFiles
         <Input type="number" min={1} max={10} value={p.colorCount}
           onChange={(e) => onUpdate(p.id, { colorCount: Math.max(1, parseInt(e.target.value || '1')) })} />
       </div>
-      {/* Artwork selection handled via drag-and-drop to the viewer */}
+      <div className="w-48">
+        <Label className="text-xs">Artwork</Label>
+        <ArtworkUploader
+          files={artworkFiles}
+          valueName={(() => {
+            const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
+            if (f instanceof File) return f.name
+            if (typeof f === 'string' && f) return f
+            return undefined
+          })()}
+          onSelectFileName={(val) => {
+            const file = artworkFiles.find(f => f.name === val)
+            if (file) onUpdate(p.id, { artworkFiles: [file] as File[] })
+          }}
+          onUpload={(file) => onUpdate(p.id, { artworkFiles: [file] as File[] })}
+          onClear={() => onUpdate(p.id, { artworkFiles: [] })}
+          inputId={`print-upload-${p.id}`}
+        />
+      </div>
       {/* Custom text removed for simplicity */}
       <div className="ml-auto flex items-center gap-1">
         <Button type="button" variant="ghost" size="icon" onClick={() => onUpdate(p.id, { active: !p.active })} aria-label="Toggle visibility">
