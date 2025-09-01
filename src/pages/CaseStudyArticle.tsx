@@ -5,6 +5,8 @@ import { Link, useParams } from "react-router-dom";
 import { caseStudiesData, type CaseStudy } from "@/data/caseStudies";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const useCountUp = (target: number, durationMs = 1200) => {
 	const [value, setValue] = useState(0);
@@ -95,17 +97,118 @@ const CaseStudyArticle = () => {
 
 			<section className="relative z-10 max-w-6xl mx-auto px-6 py-10 md:py-14">
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-					<Card className="md:col-span-2 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
-						<CardHeader>
-							<CardTitle>Overview</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="prose prose-sm md:prose-base dark:prose-invert">
-								<p>Use this section to describe the context, audience, and goals. Replace this placeholder with your narrative when ready.</p>
-							</div>
-						</CardContent>
-					</Card>
+					{/* Main content */}
+					<div className="md:col-span-2 space-y-6">
+						<Card id="overview" className="scroll-mt-24 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "120ms", animationFillMode: "both" }}>
+							<CardHeader>
+								<CardTitle>Overview</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<div className="prose prose-sm md:prose-base dark:prose-invert">
+									<p>Use this section to describe the context, audience, and goals. Replace this placeholder with your narrative when ready.</p>
+								</div>
+							</CardContent>
+						</Card>
+
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+							<Card id="challenge" className="scroll-mt-24 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "160ms", animationFillMode: "both" }}>
+								<CardHeader>
+									<CardTitle>Challenge</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<p className="text-sm text-muted-foreground">Describe constraints, pain points, and prior workflows.</p>
+								</CardContent>
+							</Card>
+							<Card id="solution" className="scroll-mt-24 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "180ms", animationFillMode: "both" }}>
+								<CardHeader>
+									<CardTitle>Solution</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<p className="text-sm text-muted-foreground">Outline the approach, key decisions, and systems.</p>
+								</CardContent>
+							</Card>
+						</div>
+
+						<Card id="results" className="scroll-mt-24 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "200ms", animationFillMode: "both" }}>
+							<CardHeader>
+								<CardTitle>Results</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<p className="text-sm text-muted-foreground">Summarize outcomes and what changed. Add charts, images, or quotes later.</p>
+							</CardContent>
+						</Card>
+
+						{/* Image gallery placeholders */}
+						<Card id="gallery" className="scroll-mt-24 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "220ms", animationFillMode: "both" }}>
+							<CardHeader>
+								<CardTitle>Image Gallery</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+									{Array.from({ length: 6 }).map((_, i) => (
+										<div key={i} className="group">
+											<AspectRatio ratio={16 / 9} className="rounded-lg overflow-hidden border bg-muted relative">
+												<div className="absolute inset-0 bg-gradient-to-br from-muted-foreground/10 to-transparent" />
+												<div className="absolute inset-0 animate-pulse bg-white/5" />
+											</AspectRatio>
+											<p className="mt-2 text-xs text-muted-foreground">Caption placeholder {i + 1}</p>
+										</div>
+									))}
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Quotes / Testimonials */}
+						<Card id="quotes" className="scroll-mt-24 animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "240ms", animationFillMode: "both" }}>
+							<CardHeader>
+								<CardTitle>Quotes</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+									{[
+										{ name: "Alex Kim", role: "Growth Lead", text: "PTRN let us move from concept to launch in days." },
+										{ name: "Priya N.", role: "Program Director", text: "Small-batch runs helped chapters test and learn fast." },
+										{ name: "Jordan Lee", role: "Operations", text: "Routing reduced logistics overhead across regions." },
+									].map((q, i) => (
+										<div key={i} className="rounded-lg border p-4">
+											<p className="text-sm">“{q.text}”</p>
+											<div className="mt-3 flex items-center gap-3">
+												<Avatar className="h-8 w-8">
+													<AvatarImage alt={q.name} />
+													<AvatarFallback>{q.name.split(' ').map(n => n[0]).join('').slice(0,2)}</AvatarFallback>
+												</Avatar>
+												<div className="text-xs">
+													<div className="font-medium">{q.name}</div>
+													<div className="text-muted-foreground">{q.role}</div>
+												</div>
+											</div>
+										</div>
+									))}
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+
+					{/* Sidebar */}
 					<div className="grid gap-6">
+						<Card className="sticky top-24 animate-in fade-in-0 slide-in-from-right-2" style={{ animationDelay: "80ms", animationFillMode: "both" }}>
+							<CardHeader>
+								<CardTitle>On this page</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<nav className="text-sm">
+									<ul className="space-y-2">
+										<li><a className="text-muted-foreground hover:text-foreground" href="#overview">Overview</a></li>
+										<li><a className="text-muted-foreground hover:text-foreground" href="#challenge">Challenge</a></li>
+										<li><a className="text-muted-foreground hover:text-foreground" href="#solution">Solution</a></li>
+										<li><a className="text-muted-foreground hover:text-foreground" href="#results">Results</a></li>
+										<li><a className="text-muted-foreground hover:text-foreground" href="#gallery">Image Gallery</a></li>
+										<li><a className="text-muted-foreground hover:text-foreground" href="#quotes">Quotes</a></li>
+									</ul>
+								</nav>
+							</CardContent>
+						</Card>
+
 						<Card className="animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "160ms", animationFillMode: "both" }}>
 							<CardHeader>
 								<CardTitle>Project Details</CardTitle>
@@ -118,6 +221,7 @@ const CaseStudyArticle = () => {
 								</ul>
 							</CardContent>
 						</Card>
+
 						<Card className="animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "200ms", animationFillMode: "both" }}>
 							<CardHeader>
 								<CardTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Highlights</CardTitle>
@@ -131,36 +235,6 @@ const CaseStudyArticle = () => {
 							</CardContent>
 						</Card>
 					</div>
-				</div>
-
-				<div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-					<Card className="animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "240ms", animationFillMode: "both" }}>
-						<CardHeader>
-							<CardTitle>Challenge</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<p className="text-sm text-muted-foreground">Describe constraints, pain points, and prior workflows.</p>
-						</CardContent>
-					</Card>
-					<Card className="animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "280ms", animationFillMode: "both" }}>
-						<CardHeader>
-							<CardTitle>Solution</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<p className="text-sm text-muted-foreground">Outline the approach, key decisions, and systems.</p>
-						</CardContent>
-					</Card>
-				</div>
-
-				<div className="mt-6">
-					<Card className="animate-in fade-in-0 slide-in-from-bottom-2" style={{ animationDelay: "320ms", animationFillMode: "both" }}>
-						<CardHeader>
-							<CardTitle>Results</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<p className="text-sm text-muted-foreground">Summarize outcomes and what changed. Add charts, images, or quotes later.</p>
-						</CardContent>
-					</Card>
 				</div>
 			</section>
 		</div>
