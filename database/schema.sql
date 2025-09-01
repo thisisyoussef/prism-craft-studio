@@ -48,59 +48,58 @@ CREATE TABLE public.products (
 );
 
 -- Orders table
+CREATE TYPE IF NOT EXISTS public.order_status AS ENUM ('draft','pending','confirmed','in_production','shipped','delivered','cancelled');
+
 CREATE TABLE public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL,
+  company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  order_number TEXT UNIQUE NOT NULL,
-  product_type TEXT NOT NULL,
-  quantity INTEGER NOT NULL,
-  unit_price DECIMAL(10,2) NOT NULL,
-  total_price DECIMAL(10,2) NOT NULL,
-  customization JSONB,
-  status TEXT DEFAULT 'quote_requested' CHECK (status IN ('quote_requested', 'quoted', 'deposit_paid', 'in_production', 'quality_control', 'ready_to_ship', 'final_payment_due', 'shipped', 'delivered', 'completed', 'cancelled')),
-  deposit_amount DECIMAL(10,2),
-  deposit_paid BOOLEAN DEFAULT false,
-  final_payment_paid BOOLEAN DEFAULT false,
-  estimated_delivery DATE,
-  production_notes TEXT,
-  stripe_payment_intent_id TEXT,
+  order_number TEXT UNIQUE,
+  product_id UUID REFERENCES public.products(id),
+  quantity INTEGER NOT NULL DEFAULT 1,
+  colors TEXT[],
+  sizes TEXT[],
+  customization_details JSONB,
+  artwork_files TEXT[],
+  custom_text TEXT,
+  placement TEXT,
+  notes TEXT,
+  status public.order_status DEFAULT 'draft',
+  total_amount DECIMAL(10,2),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Samples table
+CREATE TYPE IF NOT EXISTS public.sample_status AS ENUM ('pending','approved','shipped','delivered','converted_to_order');
+
 CREATE TABLE public.samples (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   sample_number TEXT UNIQUE NOT NULL,
   products JSONB NOT NULL,
-  total_price DECIMAL(10,2) NOT NULL,
-  status TEXT DEFAULT 'ordered' CHECK (status IN ('ordered', 'processing', 'shipped', 'delivered', 'converted_to_order')),
+  total_amount DECIMAL(10,2),
+  status public.sample_status DEFAULT 'pending',
   shipping_address JSONB,
   tracking_number TEXT,
   converted_order_id UUID REFERENCES public.orders(id),
-  stripe_payment_intent_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Designer bookings
+CREATE TYPE IF NOT EXISTS public.booking_status AS ENUM ('pending','confirmed','completed','cancelled');
+
 CREATE TABLE public.designer_bookings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   designer_id TEXT NOT NULL,
   consultation_type TEXT NOT NULL,
-  scheduled_date TIMESTAMPTZ NOT NULL,
+  preferred_date TIMESTAMPTZ,
   duration_minutes INTEGER DEFAULT 60,
-  status TEXT DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rescheduled')),
-  price DECIMAL(10,2) NOT NULL,
-  meeting_link TEXT,
-  notes TEXT,
-  project_files JSONB,
-  stripe_payment_intent_id TEXT,
+  status public.booking_status DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -146,6 +145,37 @@ CREATE TABLE public.pricing_rules (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Payments table for deposits and balances
+CREATE TYPE IF NOT EXISTS public.payment_phase AS ENUM ('deposit','balance');
+CREATE TYPE IF NOT EXISTS public.payment_status AS ENUM ('requires_payment_method','requires_action','processing','succeeded','canceled','failed','refunded','partially_refunded');
+
+CREATE TABLE IF NOT EXISTS public.payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE NOT NULL,
+  phase public.payment_phase NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  status public.payment_status NOT NULL DEFAULT 'requires_payment_method',
+  paid_at TIMESTAMPTZ,
+  stripe_checkout_session_id TEXT,
+  stripe_payment_intent_id TEXT,
+  stripe_charge_id TEXT,
+  metadata JSONB
+);
+
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Users can view company payments" ON public.payments FOR SELECT USING (
+  order_id IN (
+    SELECT id FROM public.orders WHERE company_id IN (
+      SELECT company_id FROM public.profiles WHERE id = auth.uid()
+    ) OR user_id = auth.uid()
+  )
+);
+
+CREATE TRIGGER IF NOT EXISTS update_payments_updated_at BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert default products
 INSERT INTO public.products (name, category, base_price, description, materials, colors, sizes) VALUES
