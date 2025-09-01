@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store";
 import AuthDialog from "./AuthDialog";
-import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDollarSign, FlaskConical } from "lucide-react";
+import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDollarSign, FlaskConical, BookOpen } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useProfile } from "@/lib/profile";
 
@@ -59,6 +59,12 @@ const Navigation = () => {
             className={`transition-colors duration-200 ${isActive('/designers') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
           >
             Designers
+          </Link>
+          <Link 
+            to="/case-studies" 
+            className={`transition-colors duration-200 ${isActive('/case-studies') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
+          >
+            Case Studies
           </Link>
         </div>
         
@@ -172,6 +178,13 @@ const Navigation = () => {
                 >
                   Designers
                 </Link>
+                <Link
+                  to="/case-studies"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/case-studies') ? 'bg-accent/60 text-accent-foreground' : ''}`}
+                  onClick={() => setOpen(false)}
+                >
+                  Case Studies
+                </Link>
               </div>
               <div className="my-2 h-px bg-border" />
               {user ? (
@@ -249,7 +262,7 @@ const Navigation = () => {
     <div className="h-16 md:h-20" aria-hidden="true" />
     {/* Bottom mobile navigation */}
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
-      <div className="grid grid-cols-4">
+      <div className="grid grid-cols-5">
         <Link to="/" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
           <Home className="h-5 w-5" />
           <span>Home</span>
@@ -265,6 +278,10 @@ const Navigation = () => {
         <Link to="/samples" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/samples') ? 'text-primary' : 'text-muted-foreground'}`}>
           <FlaskConical className="h-5 w-5" />
           <span>Samples</span>
+        </Link>
+        <Link to="/case-studies" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/case-studies') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <BookOpen className="h-5 w-5" />
+          <span>Cases</span>
         </Link>
       </div>
     </nav>
