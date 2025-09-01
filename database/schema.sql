@@ -326,3 +326,52 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH 
 CREATE TRIGGER update_samples_updated_at BEFORE UPDATE ON public.samples FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_designer_bookings_updated_at BEFORE UPDATE ON public.designer_bookings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_pricing_rules_updated_at BEFORE UPDATE ON public.pricing_rules FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Additional tables to align with current application code
+
+-- Addresses (user-owned address book)
+CREATE TABLE IF NOT EXISTS public.addresses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  label TEXT,
+  full_name TEXT,
+  company TEXT,
+  phone TEXT,
+  address1 TEXT NOT NULL,
+  address2 TEXT,
+  city TEXT NOT NULL,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT NOT NULL DEFAULT 'US',
+  is_default_shipping BOOLEAN DEFAULT false,
+  is_default_billing BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Users can manage own addresses" ON public.addresses FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+-- Update timestamp trigger for addresses
+CREATE TRIGGER IF NOT EXISTS update_addresses_updated_at BEFORE UPDATE ON public.addresses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Product variants (colors and images per view)
+CREATE TABLE IF NOT EXISTS public.product_variants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID REFERENCES public.products(id) ON DELETE CASCADE NOT NULL,
+  color_name TEXT NOT NULL,
+  color_hex TEXT,
+  image_url TEXT,
+  front_image_url TEXT,
+  back_image_url TEXT,
+  sleeve_image_url TEXT,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Product variants are publicly readable" ON public.product_variants FOR SELECT USING (active = true);
+
+-- Update timestamp trigger for product_variants
+CREATE TRIGGER IF NOT EXISTS update_product_variants_updated_at BEFORE UPDATE ON public.product_variants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
