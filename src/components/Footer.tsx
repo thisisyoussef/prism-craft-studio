@@ -3,7 +3,7 @@ import { Github, Twitter, Linkedin, Instagram } from "lucide-react";
 
 const Footer = () => {
   return (
-    <footer className="border-t bg-background/60">
+    <footer className="border-t bg-background/60 pb-16 md:pb-0">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-1 md:grid-cols-4 gap-8 text-sm">
         <div>
           <div className="text-xl font-semibold tracking-tight">PTRN</div>
