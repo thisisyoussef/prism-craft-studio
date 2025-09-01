@@ -19,6 +19,7 @@ import AdminProductEditor from "./pages/AdminProductEditor";
 import AdminOrders from "./pages/AdminOrders";
 import AdminOrderDetail from "./pages/AdminOrderDetail";
 import Settings from "./pages/Settings";
+import ExperimentalMockupEditor from "./pages/ExperimentalMockupEditor";
 import CaseStudies from "./pages/CaseStudies";
 import CaseStudyArticle from "./pages/CaseStudyArticle";
 
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/admin/inventory/:productId" element={<AdminProductEditor />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
+          <Route path="/experimental/mockup-editor" element={<ExperimentalMockupEditor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
