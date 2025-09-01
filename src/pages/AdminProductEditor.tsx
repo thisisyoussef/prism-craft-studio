@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/lib/profile";
@@ -38,6 +38,7 @@ const AdminProductEditor = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const location = useLocation() as { state?: { from?: string } };
   const { data: profile, isLoading: loadingProfile } = useProfile();
   const { toast } = useToast();
 
@@ -444,7 +445,7 @@ const AdminProductEditor = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
         <p className="text-muted-foreground">Product not found.</p>
-        <Button onClick={() => navigate("/admin/inventory")}>Back</Button>
+        <Button onClick={() => navigate(location.state?.from || "/admin/inventory", { replace: true })}>Back</Button>
       </div>
     );
   }
@@ -482,7 +483,16 @@ const AdminProductEditor = () => {
     <div className="min-h-screen">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/admin/inventory")}> 
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate(location.state?.from || "/admin/inventory", { replace: true });
+              }
+            }}
+          > 
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <div>

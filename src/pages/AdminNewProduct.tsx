@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/lib/profile";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,7 @@ interface ColorVariant {
 
 export default function AdminNewProduct() {
   const navigate = useNavigate();
+  const location = useLocation() as { state?: { from?: string } };
   const { data: profile, isLoading: loadingProfile } = useProfile();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -301,7 +302,16 @@ export default function AdminNewProduct() {
     <div className="min-h-screen">
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/admin/inventory")}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate(location.state?.from || "/admin/inventory", { replace: true });
+              }
+            }}
+          >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Inventory
           </Button>
           <div>
@@ -591,7 +601,7 @@ export default function AdminNewProduct() {
             <Button 
               type="button" 
               variant="outline" 
-              onClick={() => navigate("/admin/inventory")}
+              onClick={() => navigate(location.state?.from || "/admin/inventory", { replace: true })}
               disabled={createProduct.isPending}
             >
               Cancel

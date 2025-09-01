@@ -83,14 +83,26 @@ const Navigation = () => {
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => navigate('/admin/inventory')}
+                    onClick={() => {
+                      if (location.pathname === '/admin/inventory') {
+                        navigate('/admin/inventory', { replace: true });
+                      } else {
+                        navigate('/admin/inventory');
+                      }
+                    }}
                   >
                     Inventory
                   </Button>
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => navigate('/admin/orders')}
+                    onClick={() => {
+                      if (location.pathname === '/admin/orders') {
+                        navigate('/admin/orders', { replace: true });
+                      } else {
+                        navigate('/admin/orders');
+                      }
+                    }}
                   >
                     Orders
                   </Button>
@@ -195,7 +207,11 @@ const Navigation = () => {
                         variant="outline"
                         onClick={() => {
                           setOpen(false);
-                          navigate('/admin/inventory');
+                          if (location.pathname === '/admin/inventory') {
+                            navigate('/admin/inventory', { replace: true });
+                          } else {
+                            navigate('/admin/inventory');
+                          }
                         }}
                       >
                         Inventory
@@ -204,7 +220,11 @@ const Navigation = () => {
                         variant="outline"
                         onClick={() => {
                           setOpen(false);
-                          navigate('/admin/orders');
+                          if (location.pathname === '/admin/orders') {
+                            navigate('/admin/orders', { replace: true });
+                          } else {
+                            navigate('/admin/orders');
+                          }
                         }}
                       >
                         Orders
