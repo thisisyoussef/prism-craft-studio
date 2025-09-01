@@ -261,7 +261,7 @@ const OrderDetails = () => {
           const { data: profile } = await (supabase as any)
             .from('profiles')
             .select('role')
-            .eq('user_id', user.id)
+            .eq('id', user.id)
             .maybeSingle()
           const role = (profile as any)?.role
           setIsAdmin(role === 'admin' || role === 'moderator')

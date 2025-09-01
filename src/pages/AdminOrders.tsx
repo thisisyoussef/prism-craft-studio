@@ -82,11 +82,11 @@ export default function AdminOrders() {
         if (!ids.length) { setProfilesMap({}); return }
         const { data, error } = await (supabase as any)
           .from('profiles')
-          .select('user_id, first_name, last_name, email, phone')
-          .in('user_id', ids);
+          .select('id, first_name, last_name, email, phone')
+          .in('id', ids);
         if (!error && Array.isArray(data)) {
           const next: any = {};
-          for (const p of data) next[p.user_id] = { first_name: p.first_name, last_name: p.last_name, email: p.email, phone: p.phone };
+          for (const p of data) next[p.id] = { first_name: p.first_name, last_name: p.last_name, email: p.email, phone: p.phone };
           setProfilesMap(next);
         }
       } catch {}
