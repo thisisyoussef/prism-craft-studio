@@ -19,6 +19,8 @@ import AdminProductEditor from "./pages/AdminProductEditor";
 import AdminOrders from "./pages/AdminOrders";
 import AdminOrderDetail from "./pages/AdminOrderDetail";
 import Settings from "./pages/Settings";
+import CaseStudies from "./pages/CaseStudies";
+import CaseStudyArticle from "./pages/CaseStudyArticle";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +40,8 @@ const App = () => (
           <Route path="/customize" element={<Customize />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/case-studies" element={<CaseStudies />} />
+          <Route path="/case-studies/:slug" element={<CaseStudyArticle />} />
           <Route path="/orders/:id" element={<OrderDetails />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/inventory/new" element={<AdminNewProduct />} />

@@ -60,6 +60,12 @@ const Navigation = () => {
           >
             Designers
           </Link>
+          <Link 
+            to="/case-studies" 
+            className={`transition-colors duration-200 ${isActive('/case-studies') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
+          >
+            Case Studies
+          </Link>
         </div>
         
         <div className="flex items-center gap-3">
@@ -171,6 +177,13 @@ const Navigation = () => {
                   onClick={() => setOpen(false)}
                 >
                   Designers
+                </Link>
+                <Link
+                  to="/case-studies"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/case-studies') ? 'bg-accent/60 text-accent-foreground' : ''}`}
+                  onClick={() => setOpen(false)}
+                >
+                  Case Studies
                 </Link>
               </div>
               <div className="my-2 h-px bg-border" />
