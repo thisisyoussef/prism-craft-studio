@@ -397,7 +397,7 @@ export default function AdminInventory() {
                       >
                         Edit
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/orders/new?productId=${p.id}`)}>
+                      <Button variant="ghost" size="sm" onClick={() => navigate(`/customize?productId=${p.id}`)}>
                         Create Order
                       </Button>
                       <AlertDialog>

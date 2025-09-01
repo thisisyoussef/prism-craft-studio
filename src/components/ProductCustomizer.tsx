@@ -27,7 +27,7 @@ import { zodErrorMessage } from '@/lib/errors'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { sendGuestDraftEmail } from '../lib/email'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import GarmentMockup, { type GarmentType } from './GarmentMockups'
 
 type CustomizerMode = 'dialog' | 'page'
@@ -120,6 +120,15 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     },
   })
   const { setValue, formState } = form
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const pid = searchParams.get('productId')
+    if (pid) {
+      setSelectedProduct(pid)
+      updateProductType(pid)
+      setValue('productId', pid, { shouldValidate: true })
+    }
+  }, [searchParams, updateProductType, setValue])
   const viewerRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState<{ id: string } | null>(null)
   const [resizing, setResizing] = useState<{ id: string; corner: 'nw' | 'ne' | 'sw' | 'se' } | null>(null)
