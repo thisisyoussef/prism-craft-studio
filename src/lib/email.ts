@@ -26,6 +26,34 @@ export async function sendGuestDraftEmail(type: 'quote' | 'sample', to: string |
   }
 }
 
+export async function sendOrderUpdateEmail(to: string | undefined, payload: {
+  order_number?: string
+  order_id?: string
+  status?: string
+  explanation?: string
+  notes?: string | null
+}) {
+  if (!to) return
+  try {
+    const { error } = await supabase.functions.invoke('send-email', {
+      body: { type: 'order_update', to, payload },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[email] Failed to send order update via Edge Function.', e)
+    console.info('[email] preview', {
+      to,
+      type: 'order_update',
+      from: RESEND_FROM ? `PTRN <${RESEND_FROM}>` : 'PTRN <notifications@ptrn.example>',
+      preview: renderOrderUpdateHtml(payload).slice(0, 2000),
+    })
+  }
+}
+
 function renderGuestDraftHtml(type: 'quote' | 'sample', payload: any) {
   const intro = type === 'quote' ? 'Thanks for your quote request!' : 'Thanks for your sample order request!'
   const items = Array.isArray(payload?.draft?.items)
@@ -48,4 +76,26 @@ function escapeHtml(s: string) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
+
+function renderOrderUpdateHtml(payload: {
+  order_number?: string
+  order_id?: string
+  status?: string
+  explanation?: string
+  notes?: string | null
+}) {
+  const orderNo = payload?.order_number || payload?.order_id || 'Your Order'
+  const status = payload?.status || 'updated'
+  const explanation = payload?.explanation || ''
+  const notes = payload?.notes || ''
+  return `
+    <div style="font-family:Inter,system-ui,Arial,sans-serif">
+      <h2>Order Update: ${escapeHtml(orderNo)}</h2>
+      <p>Your order status is now: <strong>${escapeHtml(String(status).replace(/_/g,' '))}</strong>.</p>
+      ${explanation ? `<p>${escapeHtml(explanation)}</p>` : ''}
+      ${notes ? `<p style="color:#6b7280"><em>Note:</em> ${escapeHtml(notes)}</p>` : ''}
+      <p style="color:#6b7280">If you have any questions, just reply to this email.</p>
+    </div>
+  `
 }
