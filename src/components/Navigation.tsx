@@ -66,6 +66,12 @@ const Navigation = () => {
           >
             Case Studies
           </Link>
+          <Link 
+            to="/experimental/mockup-editor" 
+            className={`transition-colors duration-200 ${isActive('/experimental/mockup-editor') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
+          >
+            Experimental
+          </Link>
         </div>
         
         <div className="flex items-center gap-3">
@@ -196,6 +202,13 @@ const Navigation = () => {
                   onClick={() => setOpen(false)}
                 >
                   Case Studies
+                </Link>
+                <Link
+                  to="/experimental/mockup-editor"
+                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/experimental/mockup-editor') ? 'bg-accent/60 text-accent-foreground' : ''}`}
+                  onClick={() => setOpen(false)}
+                >
+                  Experimental
                 </Link>
               </div>
               <div className="my-2 h-px bg-border" />
