@@ -313,7 +313,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
   }, [totalQuantity, prints])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-medium text-foreground mb-2">Order details</h1>
         <p className="text-muted-foreground">Set quantities and review your order</p>
@@ -328,13 +328,13 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
               <CardTitle className="text-lg">Product summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <span>Product:</span>
-                <span className="font-medium">{productInfo?.name || 'Loading...'}</span>
+                <span className="font-medium text-right break-words">{productInfo?.name || 'Loading...'}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <span>Print locations:</span>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1 justify-end">
                   {prints.map(p => (
                     <Badge key={p.id} variant="outline" className="text-xs">{p.location}</Badge>
                   ))}
@@ -351,9 +351,9 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Total Quantity Input */}
-              <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 bg-muted/50 rounded-lg">
                 <Label className="font-medium">Total quantity (minimum 50):</Label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start w-full sm:w-auto">
                   <Button 
                     type="button" 
                     variant="outline" 
@@ -461,22 +461,22 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span>Base price:</span>
                   <span>${productInfo?.basePrice?.toFixed(2) || '0.00'}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span>Quantity:</span>
                   <span>{totalQuantity} pieces</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span>Print setup:</span>
                   <span>Included</span>
                 </div>
               </div>
               
               <div className="border-t pt-4">
-                <div className="flex justify-between text-lg font-semibold">
+                <div className="flex justify-between gap-2 text-lg font-semibold">
                   <span>Total:</span>
                   <span>${price.toFixed(2)}</span>
                 </div>
@@ -544,7 +544,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-6 border-t">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t">
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to design
