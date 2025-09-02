@@ -12,7 +12,7 @@ const Index = () => {
   return (
     <div className="relative min-h-screen bg-background">
       <SEO
-        title="Custom Apparel for Organizations & Businesses"
+        title="PTRN - Custom Apparel for Organizations & Businesses"
         description="Transparent custom apparel with real-time pricing, designer collaboration, and full production tracking."
         canonicalUrl={typeof window !== 'undefined' ? window.location.origin + '/' : undefined}
         ogImage="/logo.png"
