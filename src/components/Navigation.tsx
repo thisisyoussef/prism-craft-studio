@@ -19,6 +19,17 @@ const Navigation = () => {
     initialize();
   }, [initialize]);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (open) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [open]);
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -29,7 +40,7 @@ const Navigation = () => {
 
   return (
     <>
-    <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 py-4">
+    <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 py-4 pt-[env(safe-area-inset-top)]">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="text-2xl font-medium tracking-tight text-foreground">
           <Link to="/">PTRN</Link>
@@ -136,10 +147,14 @@ const Navigation = () => {
                 trigger={<Button variant="ghost" size="lg" className="hidden md:inline-flex">Sign in</Button>}
                 defaultTab="signin"
               />
-              <AuthDialog 
-                trigger={<Button variant="hero" size="lg" className="hidden md:inline-flex">Get started</Button>}
-                defaultTab="signup"
-              />
+              <Button 
+                variant="hero" 
+                size="lg" 
+                className="hidden md:inline-flex"
+                onClick={() => navigate('/carrier-setup')}
+              >
+                Sign up
+              </Button>
             </>
           )}
           {/* Mobile menu toggle */}
@@ -158,7 +173,15 @@ const Navigation = () => {
 
       {/* Mobile dropdown panel */}
       {open && (
-        <div className="md:hidden">
+        <div
+          className="md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Main menu"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setOpen(false);
+          }}
+        >
           <div className="absolute left-4 right-4 mt-3 rounded-lg border bg-popover text-popover-foreground shadow-lg origin-top transition-all duration-200 ease-out animate-in fade-in-0 zoom-in-95">
             <div className="p-2">
               <div className="grid gap-1">
@@ -267,10 +290,15 @@ const Navigation = () => {
                     trigger={<Button variant="ghost">Sign in</Button>}
                     defaultTab="signin"
                   />
-                  <AuthDialog
-                    trigger={<Button variant="hero">Get started</Button>}
-                    defaultTab="signup"
-                  />
+                  <Button
+                    variant="hero"
+                    onClick={() => {
+                      setOpen(false);
+                      navigate('/carrier-setup');
+                    }}
+                  >
+                    Sign up
+                  </Button>
                 </div>
               )}
             </div>
@@ -281,26 +309,26 @@ const Navigation = () => {
     {/* Spacer to offset fixed nav height */}
     <div className="h-16 md:h-20" aria-hidden="true" />
     {/* Bottom mobile navigation */}
-    <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 hidden md:hidden">
+    <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden pb-[env(safe-area-inset-bottom)]">
       <div className="grid grid-cols-5">
-        <Link to="/" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
-          <Home className="h-5 w-5" />
+        <Link to="/" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Home className="h-6 w-6" />
           <span>Home</span>
         </Link>
-        <Link to="/catalog" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/catalog') ? 'text-primary' : 'text-muted-foreground'}`}>
-          <Package className="h-5 w-5" />
+        <Link to="/catalog" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/catalog') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Package className="h-6 w-6" />
           <span>Products</span>
         </Link>
-        <Link to="/pricing" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/pricing') ? 'text-primary' : 'text-muted-foreground'}`}>
-          <BadgeDollarSign className="h-5 w-5" />
+        <Link to="/pricing" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/pricing') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <BadgeDollarSign className="h-6 w-6" />
           <span>Pricing</span>
         </Link>
-        <Link to="/samples" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/samples') ? 'text-primary' : 'text-muted-foreground'}`}>
-          <FlaskConical className="h-5 w-5" />
+        <Link to="/samples" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/samples') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <FlaskConical className="h-6 w-6" />
           <span>Samples</span>
         </Link>
-        <Link to="/case-studies" className={`flex flex-col items-center justify-center py-2 text-xs ${isActive('/case-studies') ? 'text-primary' : 'text-muted-foreground'}`}>
-          <BookOpen className="h-5 w-5" />
+        <Link to="/case-studies" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/case-studies') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <BookOpen className="h-6 w-6" />
           <span>Cases</span>
         </Link>
       </div>

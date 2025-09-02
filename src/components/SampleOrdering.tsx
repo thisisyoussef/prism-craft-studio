@@ -30,7 +30,7 @@ type VariantRow = {
 const SampleOrdering = () => {
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
 
-  const { data: productsData } = useQuery<ProductRow[]>({
+  const { data: productsData, isLoading: productsLoading } = useQuery<ProductRow[]>({
     queryKey: ['sample-products'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -104,10 +104,10 @@ const SampleOrdering = () => {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
-            Quality samples
+            See and feel quality
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Trust through experience. 2-4 day delivery. Sample Credit applied toward orders.
+            Try before you order. 2–4 day delivery. Sample credit applies to your order.
           </p>
         </div>
 
@@ -116,22 +116,22 @@ const SampleOrdering = () => {
           <div className="text-center p-6 bg-background rounded-xl border border-primary/5">
             <Package className="w-8 h-8 text-primary mx-auto mb-3" />
             <h3 className="font-medium text-foreground mb-2">Same quality</h3>
-            <p className="text-sm text-muted-foreground">Identical materials as your order</p>
+            <p className="text-sm text-muted-foreground">Same materials as your order</p>
           </div>
           <div className="text-center p-6 bg-background rounded-xl border border-primary/5">
             <Truck className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="font-medium text-foreground mb-2">Prompt delivery</h3>
-            <p className="text-sm text-muted-foreground">2-4 days with care</p>
+            <h3 className="font-medium text-foreground mb-2">Fast delivery</h3>
+            <p className="text-sm text-muted-foreground">2–4 day delivery</p>
           </div>
           <div className="text-center p-6 bg-background rounded-xl border border-primary/5">
             <Clock className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="font-medium text-foreground mb-2">Patient timeline</h3>
-            <p className="text-sm text-muted-foreground">30 days to decide with community pricing</p>
+            <h3 className="font-medium text-foreground mb-2">Time to decide</h3>
+            <p className="text-sm text-muted-foreground">30 days to decide. Community pricing honored.</p>
           </div>
           <div className="text-center p-6 bg-background rounded-xl border border-primary/5">
             <CheckCircle className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="font-medium text-foreground mb-2">Cost honored</h3>
-            <p className="text-sm text-muted-foreground">Respectfully applied to your order</p>
+            <h3 className="font-medium text-foreground mb-2">Credit honored</h3>
+            <p className="text-sm text-muted-foreground">Sample credit applied at checkout</p>
           </div>
         </div>
 
@@ -139,14 +139,33 @@ const SampleOrdering = () => {
           {/* Sample Selection */}
           <div className="lg:col-span-2">
             <h3 className="text-xl font-medium text-foreground mb-6">
-              Select Your Samples
+              Choose your samples
             </h3>
             
             <div className="grid sm:grid-cols-2 gap-6">
-              {sampleProducts.map((sample) => (
+              {productsLoading && (
+                <>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={`skeleton-${i}`} className="bg-background rounded-xl p-6 border border-primary/5 shadow-soft animate-pulse">
+                      <div className="aspect-square rounded-lg bg-muted mb-4" />
+                      <div className="h-4 bg-muted rounded w-1/2 mb-2" />
+                      <div className="h-3 bg-muted rounded w-5/6" />
+                    </div>
+                  ))}
+                </>
+              )}
+              {!productsLoading && sampleProducts.map((sample) => (
                 <div
                   key={sample.id}
-                  className={`bg-background rounded-xl p-6 border transition-all duration-200 cursor-pointer ${
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSample(sample.id);
+                    }
+                  }}
+                  className={`bg-background rounded-xl p-6 border transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${
                     selectedSamples.includes(sample.id)
                       ? "border-primary ring-2 ring-primary/20 shadow-medium"
                       : "border-primary/5 hover:border-primary/20 shadow-soft"
@@ -155,7 +174,14 @@ const SampleOrdering = () => {
                 >
                   <div className="aspect-square rounded-lg overflow-hidden mb-4 bg-background">
                     {sample.image ? (
-                      <img src={sample.image} alt={sample.name} className="w-full h-full object-cover" loading="lazy" />
+                      <img 
+                        src={sample.image} 
+                        alt={sample.name} 
+                        loading="lazy" 
+                        decoding="async"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        className="w-full h-full object-cover" 
+                      />
                     ) : (
                       <div className="w-full h-full grid place-items-center text-sm text-muted-foreground">No image</div>
                     )}
@@ -193,7 +219,7 @@ const SampleOrdering = () => {
             <div className="bg-background rounded-xl p-6 shadow-medium border border-primary/5 sticky top-8">
               <h3 className="text-xl font-medium text-foreground mb-6">Sample Order</h3>
               {selectedSamples.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">Select samples to get started</p>
+                <p className="text-muted-foreground text-center py-8">Choose samples to get started</p>
               ) : (
                 <>
                   <SampleOrderFlow mode="inline" selectedSamples={selectedSamples} hideSelection />
@@ -204,11 +230,11 @@ const SampleOrdering = () => {
                     onClick={() => {
                       toast({
                         title: "Custom sample",
-                        description: "Custom sample feature coming soon.",
+                        description: "Custom sample requests are coming soon.",
                       });
                     }}
                   >
-                    Add custom sample
+                    Request a custom sample
                   </Button>
                 </>
               )}

@@ -18,6 +18,8 @@ interface Product {
   category: string | null;
   base_price: number | null;
   image_url: string | null;
+  available_sizes?: string[] | null;
+  customization_options?: any;
 }
 
 interface Variant {
@@ -32,6 +34,54 @@ interface Variant {
   back_image_url: string | null;
   sleeve_image_url: string | null;
   active: boolean;
+}
+
+// Standardize uploaded images: resize and convert to WebP
+// Use a higher max dimension to preserve detail in editor/mockups
+async function preprocessImageToWebP(file: File, maxDim = 3000, quality = 0.95): Promise<File> {
+  // If not an image, return as-is
+  if (!file.type.startsWith('image/')) return file;
+
+  // Read file into an HTMLImageElement
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('Failed to read image'));
+    fr.onload = () => resolve(String(fr.result));
+    fr.readAsDataURL(file);
+  });
+
+  const img: HTMLImageElement = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Failed to load image'));
+    i.src = dataUrl;
+  });
+
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+  if (!srcW || !srcH) return file;
+
+  // Compute target size preserving aspect ratio
+  const scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+  const dstW = Math.max(1, Math.round(srcW * scale));
+  const dstH = Math.max(1, Math.round(srcH * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = dstW;
+  canvas.height = dstH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect(0, 0, dstW, dstH);
+  ctx.drawImage(img, 0, 0, dstW, dstH);
+
+  const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+  if (!blob) return file;
+
+  const safeBase = (file.name.replace(/\.[^.]+$/, '') || 'image').slice(0, 80);
+  const out = new File([blob], `${safeBase}.webp`, { type: 'image/webp', lastModified: Date.now() });
+  return out;
 }
 
 const AdminProductEditor = () => {
@@ -51,7 +101,7 @@ const AdminProductEditor = () => {
       if (!productId || isNewProduct) return null;
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, description, category, base_price, image_url")
+        .select("id, name, description, category, base_price, image_url, available_sizes, customization_options")
         .eq("id", productId)
         .maybeSingle();
       if (error) throw error;
@@ -66,6 +116,23 @@ const AdminProductEditor = () => {
     setCoverPreview(product?.image_url ?? null);
   }, [product?.image_url]);
 
+  // Initialize specs state when product loads
+  useEffect(() => {
+    if (!product) return;
+    setSizes(product.available_sizes || []);
+    const opts: any = product.customization_options || {};
+    setMaterials(opts.materials || '');
+    setFit(opts.fit || '');
+    setCare(opts.care || '');
+    setDetailsList(Array.isArray(opts.details) ? opts.details : []);
+    const sc = opts.size_chart;
+    if (sc && Array.isArray(sc.columns) && Array.isArray(sc.rows)) {
+      setSizeChart({ columns: sc.columns, rows: sc.rows });
+    } else {
+      setSizeChart({ columns: [], rows: [] });
+    }
+  }, [product]);
+
   // New product form state
   const [newProductData, setNewProductData] = useState({
     name: '',
@@ -73,6 +140,15 @@ const AdminProductEditor = () => {
     category: '',
     base_price: 0,
   });
+
+  // Specs state (sizes and customization options)
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [materials, setMaterials] = useState<string>('');
+  const [fit, setFit] = useState<string>('');
+  const [care, setCare] = useState<string>('');
+  const [detailsList, setDetailsList] = useState<string[]>([]);
+  type SizeChart = { columns: string[]; rows: Array<{ label: string; values: string[] }> };
+  const [sizeChart, setSizeChart] = useState<SizeChart>({ columns: [], rows: [] });
 
   // Variants query (moved up to avoid TDZ when used by drafts below)
   const { data: variants, isLoading: loadingVariants } = useQuery<Variant[]>({
@@ -120,13 +196,15 @@ const AdminProductEditor = () => {
   const uploadImage = useMutation({
     mutationFn: async ({ v, file, field }: { v: Variant; file: File; field: 'image_url'|'front_image_url'|'back_image_url'|'sleeve_image_url' }) => {
       if (!productId) throw new Error('No product id');
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      // Standardize image: resize & convert to webp
+      const processed = await preprocessImageToWebP(file);
+      const ext = 'webp';
       const safeField = String(field);
       const variantId = (typeof v.id === 'string' && !v.id.startsWith('temp-')) ? v.id : 'temp';
       const path = `${productId}/${variantId}/${safeField}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from('variant-images')
-        .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type || undefined });
+        .upload(path, processed, { cacheControl: '3600', upsert: true, contentType: 'image/webp' });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from('variant-images').getPublicUrl(path);
       const publicUrl: string | null = pub?.publicUrl || null;
@@ -242,12 +320,14 @@ const AdminProductEditor = () => {
   const uploadProductImage = useMutation({
     mutationFn: async (file: File) => {
       if (!productId && !isNewProduct) throw new Error('No product id');
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      // Standardize image: resize & convert to webp
+      const processed = await preprocessImageToWebP(file);
+      const ext = 'webp';
       const tempId = isNewProduct ? 'temp' : productId;
       const path = `products/${tempId}/cover/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from('product-images')
-        .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type || undefined });
+        .upload(path, processed, { cacheControl: '3600', upsert: true, contentType: 'image/webp' });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
       const publicUrl: string | null = pub?.publicUrl || null;
@@ -456,7 +536,9 @@ const AdminProductEditor = () => {
     description: newProductData.description,
     category: newProductData.category,
     base_price: newProductData.base_price,
-    image_url: null
+    image_url: null,
+    available_sizes: sizes,
+    customization_options: {}
   };
 
   const handleAddVariant = () => {
@@ -499,6 +581,131 @@ const AdminProductEditor = () => {
             <h1 className="text-2xl font-semibold">{isNewProduct ? 'Create Product' : 'Edit Product'}</h1>
             <p className="text-sm text-muted-foreground">{displayProduct.name}</p>
           </div>
+
+        {/* Specs & Details Editor */}
+        <div className="mb-6 p-6 border rounded-md bg-background">
+          <h2 className="text-lg font-medium mb-4">Specs & details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Materials</label>
+              <Input value={materials} onChange={(e) => setMaterials(e.target.value)} placeholder="e.g. 100% cotton, 6.5oz" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Fit</label>
+              <Input value={fit} onChange={(e) => setFit(e.target.value)} placeholder="e.g. relaxed fit" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Care</label>
+              <Input value={care} onChange={(e) => setCare(e.target.value)} placeholder="e.g. wash cold, tumble low" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Details (one per line)</label>
+              <textarea
+                className="w-full border rounded-md p-2 text-sm"
+                rows={4}
+                value={detailsList.join('\n')}
+                onChange={(e) => setDetailsList(e.target.value.split(/\r?\n/).map(s => s).filter(Boolean))}
+                placeholder={"double-needle stitching\npre-shrunk fabric"}
+              />
+            </div>
+          </div>
+
+          {/* Sizes editor */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium mb-2">Available sizes</label>
+            <div className="flex flex-wrap gap-2">
+              {(sizes || []).map((s, idx) => (
+                <span key={`${s}-${idx}`} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
+                  {s}
+                  <button className="text-muted-foreground hover:text-destructive" onClick={() => setSizes(prev => prev.filter((v, i) => !(i===idx)))}>×</button>
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Input placeholder="Add size (e.g. XL)" className="w-40" onKeyDown={(e) => {
+                const val = (e.target as HTMLInputElement).value.trim();
+                if (e.key === 'Enter' && val) {
+                  e.preventDefault();
+                  setSizes(prev => prev.includes(val) ? prev : [...prev, val]);
+                  (e.target as HTMLInputElement).value = '';
+                }
+              }} />
+              <Button type="button" variant="outline" onClick={(e) => {
+                const input = (e.currentTarget.previousSibling as HTMLInputElement);
+                const val = input?.value.trim();
+                if (val) { setSizes(prev => prev.includes(val) ? prev : [...prev, val]); input.value = ''; }
+              }}>Add</Button>
+            </div>
+          </div>
+
+          {/* Size chart editor */}
+          <div className="mt-6">
+            <h3 className="text-sm font-medium mb-2">Size chart</h3>
+            <div className="mb-2">
+              <label className="block text-xs text-muted-foreground mb-1">Columns (comma separated)</label>
+              <Input
+                value={sizeChart.columns.join(', ')}
+                onChange={(e) => setSizeChart(sc => ({ ...sc, columns: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                placeholder="S, M, L, XL"
+              />
+            </div>
+            <div className="space-y-2">
+              {sizeChart.rows.map((row, rIdx) => (
+                <div key={rIdx} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-start">
+                  <Input
+                    value={row.label}
+                    onChange={(e) => setSizeChart(sc => ({ ...sc, rows: sc.rows.map((it, i) => i===rIdx ? { ...it, label: e.target.value } : it) }))}
+                    placeholder="Chest width"
+                  />
+                  <Input
+                    className="md:col-span-2"
+                    value={row.values.join(', ')}
+                    onChange={(e) => setSizeChart(sc => ({ ...sc, rows: sc.rows.map((it, i) => i===rIdx ? { ...it, values: e.target.value.split(',').map(s => s.trim()) } : it) }))}
+                    placeholder="18, 20, 22, 24"
+                  />
+                  <div className="col-span-1 md:col-span-3 flex justify-end">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setSizeChart(sc => ({ ...sc, rows: sc.rows.filter((_, i) => i!==rIdx) }))}>Remove row</Button>
+                  </div>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => setSizeChart(sc => ({ ...sc, rows: [...sc.rows, { label: '', values: Array(sc.columns.length).fill('') }] }))}>
+                Add row
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <Button
+              onClick={async () => {
+                if (!productId) return;
+                const nextOptions = {
+                  ...(product?.customization_options || {}),
+                  materials: materials || null,
+                  fit: fit || null,
+                  care: care || null,
+                  details: detailsList,
+                  size_chart: (sizeChart.columns.length && sizeChart.rows.length) ? sizeChart : null,
+                };
+                const { error } = await supabase
+                  .from('products')
+                  .update({
+                    available_sizes: sizes,
+                    customization_options: nextOptions,
+                  })
+                  .eq('id', productId);
+                if (error) {
+                  toast({ title: 'Save failed', description: String(error.message || error), variant: 'destructive' });
+                } else {
+                  qc.invalidateQueries({ queryKey: ['product', productId] });
+                  qc.invalidateQueries({ queryKey: ['catalog-products'] });
+                  toast({ title: 'Saved', description: 'Specs updated.' });
+                }
+              }}
+            >
+              Save specs
+            </Button>
+          </div>
+        </div>
         </div>
 
         {isNewProduct && (

@@ -77,10 +77,10 @@ const DesignerBooking = () => {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
-            Design guidance
+            Design support
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            From concept to production. Our team is here to serve your vision.
+            From concept to production. We listen first and support every step.
           </p>
         </div>
 
@@ -110,7 +110,7 @@ const DesignerBooking = () => {
               </div>
               
               <p className="text-muted-foreground mb-4">
-                {consultation.description}
+                {index === 0 ? "Review your design and get practical feedback" : index === 1 ? "Explore new concepts and clear direction" : "From idea to print\u2011ready files"}
               </p>
               
               <div className="text-2xl font-medium text-foreground mb-4">
@@ -130,7 +130,7 @@ const DesignerBooking = () => {
                 variant={index === 1 ? "default" : "outline"} 
                 className="w-full"
               >
-                {index === 0 ? "Request guidance" : "Schedule support"}
+                {index === 0 ? "Request review" : "Book support"}
               </Button>
             </div>
           ))}
@@ -139,7 +139,7 @@ const DesignerBooking = () => {
         {/* Designer Profiles */}
         <div className="mb-16">
           <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
-            Our family
+            Our team
           </h3>
           
           <div className="grid md:grid-cols-3 gap-8">
@@ -152,6 +152,8 @@ const DesignerBooking = () => {
                   <img
                     src={designer.image}
                     alt={designer.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-16 h-16 rounded-full object-cover"
                   />
                   <div className="flex-1">
@@ -195,11 +197,11 @@ const DesignerBooking = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Button variant="hero" size="sm" className="w-full">
+                  <Button variant="hero" className="w-full min-h-11">
                     <Calendar className="w-4 h-4" />
                     Get guidance
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full">
+                  <Button variant="ghost" className="w-full min-h-11">
                     View portfolio
                   </Button>
                 </div>
@@ -221,7 +223,7 @@ const DesignerBooking = () => {
               </div>
               <h4 className="font-medium text-foreground mb-2">1. Connect</h4>
               <p className="text-sm text-muted-foreground">
-                Choose someone from our team to guide you
+                Choose a designer to guide you
               </p>
             </div>
             
@@ -231,7 +233,7 @@ const DesignerBooking = () => {
               </div>
               <h4 className="font-medium text-foreground mb-2">2. Listen</h4>
               <p className="text-sm text-muted-foreground">
-                We understand your needs and respect your vision
+                We listen and align on your goals
               </p>
             </div>
             
@@ -241,7 +243,7 @@ const DesignerBooking = () => {
               </div>
               <h4 className="font-medium text-foreground mb-2">3. Create</h4>
               <p className="text-sm text-muted-foreground">
-                Craft quality files with care and attention
+                We prepare clean, print\u2011ready files
               </p>
             </div>
             
@@ -251,7 +253,7 @@ const DesignerBooking = () => {
               </div>
               <h4 className="font-medium text-foreground mb-2">4. Deliver</h4>
               <p className="text-sm text-muted-foreground">
-                Bring your vision to life with quality
+                We hand off files and next steps
               </p>
             </div>
           </div>

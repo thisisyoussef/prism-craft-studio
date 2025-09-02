@@ -52,7 +52,7 @@ const PricingCalculator = () => {
             Calculate your cost
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Volume discounts applied automatically. All fees shown upfront.
+            Volume discounts apply automatically. All fees shown upfront.
           </p>
         </div>
 
@@ -68,7 +68,7 @@ const PricingCalculator = () => {
               {/* Product Type */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-3">
-                  Product Type
+                  Select a product
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {Object.entries(productPrices).map(([key, product]) => (
@@ -99,18 +99,18 @@ const PricingCalculator = () => {
                     max="10000"
                     value={quantity}
                     onChange={(e) => updateQuantity(parseInt(e.target.value) || 50)}
-                    className="w-full p-3 border border-primary/20 rounded-lg focus:border-primary focus:outline-none text-lg font-medium"
+                    className="w-full p-3 md:p-3.5 min-h-11 border border-primary/20 rounded-lg focus:border-primary focus:outline-none text-lg font-medium"
                   />
                   <div className="absolute right-3 top-3 text-sm text-muted-foreground">
                     pieces
                   </div>
                 </div>
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
                   {[50, 100, 250, 500, 1000].map((qty) => (
                     <button
                       key={qty}
                       onClick={() => updateQuantity(qty)}
-                      className="px-3 py-1 text-xs border border-primary/20 rounded-full hover:border-primary/40 transition-colors"
+                      className="h-11 px-4 text-sm border border-primary/20 rounded-full hover:border-primary/40 active:scale-[0.99] transition"
                     >
                       {qty}
                     </button>
@@ -121,7 +121,7 @@ const PricingCalculator = () => {
               {/* Customization */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-3">
-                  Customization Method
+                  Customization method
                 </label>
                 <div className="grid grid-cols-1 gap-2">
                   {Object.entries(customizationPrices).map(([key, method]) => (
@@ -148,10 +148,10 @@ const PricingCalculator = () => {
               >
                 <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm font-medium text-foreground mb-1">
-                  Upload Your Design
+                  Upload your design
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  JPG, PNG, PDF, AI files up to 5MB
+                  JPG, PNG, PDF, AI up to 5 MB
                 </p>
               </div>
             </div>
@@ -160,7 +160,7 @@ const PricingCalculator = () => {
           {/* Pricing Results */}
           <div className="bg-background rounded-2xl p-8 shadow-medium border border-primary/5 sticky top-8">
             <h3 className="text-xl font-medium text-foreground mb-6">
-              Your Quote
+              Your quote
             </h3>
 
             <div className="space-y-4 mb-6">
@@ -188,7 +188,7 @@ const PricingCalculator = () => {
                 <div className="flex justify-between items-center text-success">
                   <span className="flex items-center gap-1">
                     <TrendingDown className="w-4 h-4" />
-                    Volume Discount
+                    Volume discount
                   </span>
                   <span className="font-medium">-{(currentDiscount * 100).toFixed(0)}%</span>
                 </div>
@@ -208,7 +208,7 @@ const PricingCalculator = () => {
               </div>
               {savings > 0 && (
                 <div className="text-sm text-success mt-2">
-                  You save ${savings.toFixed(2)} with volume pricing!
+                  You save ${savings.toFixed(2)} with volume pricing.
                 </div>
               )}
             </div>
@@ -216,7 +216,7 @@ const PricingCalculator = () => {
             {nextTier && (
               <div className="bg-coral/10 border border-coral/20 rounded-lg p-4 mb-6">
                 <p className="text-sm text-foreground">
-                  Order {nextTier.min}+ pieces for {(nextTier.discount * 100).toFixed(0)}% off
+                  Order {nextTier.min}+ pieces for {(nextTier.discount * 100).toFixed(0)}% off.
                 </p>
               </div>
             )}
@@ -228,7 +228,7 @@ const PricingCalculator = () => {
                 className="w-full"
                 onClick={() => navigate('/customize')}
               >
-                Start designing
+                Customize
               </Button>
               
               <Button 
@@ -243,7 +243,7 @@ const PricingCalculator = () => {
 
             <div className="text-center mt-4 space-y-2">
               <p className="text-xs text-muted-foreground">
-                Payment: 40% deposit • 60% before shipping • Design support included
+                Payment: 40% deposit • 60% before shipping • Design support included.
               </p>
               {priceBreakdown && (
                 <div className="text-[11px] text-muted-foreground">

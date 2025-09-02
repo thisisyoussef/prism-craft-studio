@@ -191,12 +191,12 @@ const ProductCatalog = () => {
                     className="w-full"
                     onClick={() => navigate('/customize')}
                   >
-                    Customize this
+                    Customize
                   </Button>
                   <Button 
                     variant="ghost" 
                     className="w-full"
-                    onClick={() => navigate('/catalog')}
+                    onClick={() => navigate(`/products/${product.id}`)}
                   >
                     View specs
                   </Button>
@@ -228,7 +228,7 @@ const ProductCatalog = () => {
                 size="lg"
                 onClick={() => navigate('/customize')}
               >
-                Start designing
+                Customize
               </Button>
             </div>
           </div>

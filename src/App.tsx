@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Toaster as HotToaster } from 'react-hot-toast';
+import { lazy, Suspense } from 'react';
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Catalog from "./pages/Catalog";
@@ -25,6 +26,8 @@ import CaseStudyArticle from "./pages/CaseStudyArticle";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import SiteFooter from "@/components/SiteFooter";
+const ProductSpecs = lazy(() => import('./pages/ProductSpecs'));
+const AiMockup = lazy(() => import('./pages/AiMockup'));
 
 const queryClient = new QueryClient();
 
@@ -36,28 +39,32 @@ const App = () => (
       <HotToaster position="top-right" />
       <BrowserRouter>
         <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/catalog" element={<Catalog />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/samples" element={<Samples />} />
-          <Route path="/designers" element={<Designers />} />
-          <Route path="/customize" element={<Customize />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/case-studies" element={<CaseStudies />} />
-          <Route path="/case-studies/:slug" element={<CaseStudyArticle />} />
-          <Route path="/orders/:id" element={<OrderDetails />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/admin/inventory" element={<AdminInventory />} />
-          <Route path="/admin/inventory/new" element={<AdminNewProduct />} />
-          <Route path="/admin/inventory/:productId" element={<AdminProductEditor />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
-          <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/catalog" element={<Catalog />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/samples" element={<Samples />} />
+            <Route path="/designers" element={<Designers />} />
+            <Route path="/customize" element={<Customize />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/case-studies" element={<CaseStudies />} />
+            <Route path="/case-studies/:slug" element={<CaseStudyArticle />} />
+            <Route path="/orders/:id" element={<OrderDetails />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/admin/inventory" element={<AdminInventory />} />
+            <Route path="/admin/inventory/new" element={<AdminNewProduct />} />
+            <Route path="/admin/inventory/:productId" element={<AdminProductEditor />} />
+            <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
+            <Route path="/products/:productId" element={<ProductSpecs />} />
+            <Route path="/lab/ai-mockup" element={<AiMockup />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
         <SiteFooter />
       </BrowserRouter>
     </TooltipProvider>

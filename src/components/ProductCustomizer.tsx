@@ -717,7 +717,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
               <TabsList>
                 <TabsTrigger value="front">Front</TabsTrigger>
                 <TabsTrigger value="back">Back</TabsTrigger>
-                <TabsTrigger value="sleeve">Sleeve</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
