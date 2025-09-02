@@ -66,7 +66,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
         initial[size] = size === 'S' || size === 'M' || size === 'L' || size === 'XL' ? 10 : 5
       })
       setSizesQty(initial)
-      updateQuantity(45) // Total from above
+      updateQuantity(50) // Total from above
     }
   }, [sizesQty, updateQuantity])
 
@@ -104,11 +104,11 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
   // Update total quantity when sizesQty changes
   useEffect(() => {
     const total = Object.values(sizesQty).reduce((a, b) => a + (b || 0), 0)
-    updateQuantity(Math.max(25, total))
+    updateQuantity(Math.max(50, total))
   }, [sizesQty, updateQuantity])
 
   const setTotalQuantity = (newTotal: number) => {
-    const total = Math.max(25, Math.floor(newTotal || 0))
+    const total = Math.max(50, Math.floor(newTotal || 0))
     const currentTotal = Object.values(sizesQty).reduce((a, b) => a + (b || 0), 0)
     
     if (currentTotal === 0) {
@@ -309,7 +309,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
   }
 
   const isFormValid = useMemo(() => {
-    return totalQuantity >= 25 && prints.length > 0
+    return totalQuantity >= 50 && prints.length > 0
   }, [totalQuantity, prints])
 
   return (
@@ -347,27 +347,27 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Quantities by size</CardTitle>
-              <p className="text-sm text-muted-foreground">Minimum order: 25 pieces</p>
+              <p className="text-sm text-muted-foreground">Minimum order: 50 pieces</p>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Total Quantity Input */}
               <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-                <Label className="font-medium">Total quantity:</Label>
+                <Label className="font-medium">Total quantity (minimum 50):</Label>
                 <div className="flex items-center gap-2">
                   <Button 
                     type="button" 
                     variant="outline" 
                     size="sm" 
                     onClick={() => setTotalQuantity(totalQuantity - 5)}
-                    disabled={totalQuantity <= 25}
+                    disabled={totalQuantity <= 50}
                   >
                     -5
                   </Button>
                   <Input
                     type="number"
-                    min={25}
+                    min={50}
                     value={totalQuantity}
-                    onChange={(e) => setTotalQuantity(parseInt(e.target.value || '25'))}
+                    onChange={(e) => setTotalQuantity(parseInt(e.target.value || '50'))}
                     className="w-20 text-center"
                   />
                   <Button 
@@ -426,9 +426,9 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
                 ))}
               </div>
 
-              {totalQuantity < 25 && (
+              {totalQuantity < 50 && (
                 <div className="text-sm text-destructive">
-                  Minimum order quantity is 25 pieces. Current: {totalQuantity}
+                  Minimum order quantity is 50 pieces. Current: {totalQuantity}
                 </div>
               )}
             </CardContent>

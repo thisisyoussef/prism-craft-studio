@@ -823,7 +823,7 @@ interface PricingState {
 }
 
 export const usePricingStore = create<PricingState>((set, get) => ({
-  quantity: 100,
+  quantity: 50,
   productType: 't-shirt',
   customization: 'screen-print',
   price: 0,
@@ -905,7 +905,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
   },
 
   updateQuantity: (quantity) => {
-    set({ quantity })
+    set({ quantity: Math.max(50, quantity) })
     get().calculatePrice()
   },
 

@@ -640,7 +640,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
               <span className="text-sm font-medium">Quantity</span>
               <div className="inline-flex items-center gap-1">
                 <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity - 1)}>-1</Button>
-                <Input aria-label="Total Quantity" type="number" min={0} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '0'))} className="w-20 text-center" />
+                <Input aria-label="Total Quantity" type="number" min={50} value={quantity} onChange={(e) => setTotalQuantity(parseInt(e.target.value || '50'))} className="w-20 text-center" />
                 <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 1)}>+1</Button>
                 <Button type="button" size="sm" variant="outline" onClick={() => setTotalQuantity(quantity + 10)}>+10</Button>
                 <Button type="button" size="sm" variant="secondary" onClick={() => setTotalQuantity(quantity)}>Apply</Button>
