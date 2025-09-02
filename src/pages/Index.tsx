@@ -6,10 +6,17 @@ import ProductCatalog from "@/components/ProductCatalog";
 import PricingCalculator from "@/components/PricingCalculator";
 import SampleOrdering from "@/components/SampleOrdering";
 import { ScrollReveal } from "@/components/ScrollReveal";
+import SEO from "@/components/SEO";
 
 const Index = () => {
   return (
     <div className="relative min-h-screen bg-background">
+      <SEO
+        title="Custom Apparel for Organizations & Businesses"
+        description="Transparent custom apparel with real-time pricing, designer collaboration, and full production tracking."
+        canonicalUrl={typeof window !== 'undefined' ? window.location.origin + '/' : undefined}
+        ogImage="/logo.png"
+      />
       <Navigation />
 
       <ScrollReveal variant="fade-up" distancePx={28}>

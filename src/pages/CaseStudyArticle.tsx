@@ -7,6 +7,8 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import SEO from "@/components/SEO";
+import { getCanonicalUrl } from "@/lib/seo";
 
 const useCountUp = (target: number, durationMs = 1200) => {
 	const [value, setValue] = useState(0);
@@ -43,6 +45,12 @@ const CaseStudyArticle = () => {
 
 	return (
 		<div className="relative min-h-screen bg-background">
+			<SEO
+				title={study?.title}
+				description={study?.summary}
+				canonicalUrl={getCanonicalUrl(`/case-studies/${slug ?? ''}`)}
+				ogImage="/logo.png"
+			/>
 			<Navigation />
 			<section className="relative z-10">
 				<div className={`relative overflow-hidden border-y bg-gradient-to-tr ${study?.accentFrom ?? "from-sky"} ${study?.accentTo ?? "to-coral"}`}>

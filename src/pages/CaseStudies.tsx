@@ -4,10 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { Building2, Clock3, TrendingUp } from "lucide-react";
 import { caseStudiesData } from "@/data/caseStudies";
+import SEO from "@/components/SEO";
+import { getCanonicalUrl } from "@/lib/seo";
 
 const CaseStudies = () => {
 	return (
 		<div className="relative min-h-screen bg-background">
+			<SEO
+				title="Case Studies"
+				description="Real outcomes from teams using PTRN to launch, iterate, and scale custom products."
+				canonicalUrl={getCanonicalUrl('/case-studies')}
+				ogImage="/logo.png"
+			/>
 			<Navigation />
 			<section className="relative z-10 max-w-6xl mx-auto px-6 pt-8 md:pt-12">
 				<div className="mb-10 md:mb-14">
