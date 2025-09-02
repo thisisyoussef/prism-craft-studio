@@ -7,7 +7,7 @@ import SampleOrderFlow from "./SampleOrderFlow";
 
 const HeroSection = () => {
   return (
-    <main className="relative z-10 px-6 pt-8 pb-16 md:pt-16 md:pb-20">
+    <main className="relative z-10 px-6 pt-10 pb-16 md:pt-24 md:pb-20 lg:pt-28">
       <div className="max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Content */}
