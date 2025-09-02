@@ -40,13 +40,13 @@ const Navigation = () => {
 
   return (
     <>
-    <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 py-4 pt-[env(safe-area-inset-top)]">
+    <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 md:px-6 py-2 md:py-3 pt-[env(safe-area-inset-top)] md:pt-0">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="text-2xl font-medium tracking-tight text-foreground">
           <Link to="/">PTRN</Link>
         </div>
         
-        <div className="hidden md:flex space-x-8 text-sm font-medium">
+        <div className="hidden md:flex space-x-6 text-sm font-medium">
           <Link 
             to="/catalog" 
             className={`transition-colors duration-200 ${isActive('/catalog') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
@@ -79,7 +79,7 @@ const Navigation = () => {
           </Link>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {user ? (
             <div className="flex items-center gap-3">
               <div className="hidden md:flex items-center gap-2 text-sm">
@@ -93,7 +93,7 @@ const Navigation = () => {
                 <div className="hidden md:flex items-center gap-2">
                   <Button
                     variant="outline"
-                    size="lg"
+                    size="sm"
                     onClick={() => {
                       if (location.pathname === '/admin/inventory') {
                         navigate('/admin/inventory', { replace: true });
@@ -106,7 +106,7 @@ const Navigation = () => {
                   </Button>
                   <Button
                     variant="outline"
-                    size="lg"
+                    size="sm"
                     onClick={() => {
                       if (location.pathname === '/admin/orders') {
                         navigate('/admin/orders', { replace: true });
@@ -119,13 +119,13 @@ const Navigation = () => {
                   </Button>
                 </div>
               ) : null}
-              <Button variant="ghost" size="lg" onClick={handleSignOut} className="hidden md:inline-flex">
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="hidden md:inline-flex">
                 <LogOut className="w-4 h-4" />
                 Sign out
               </Button>
               <Button 
                 variant="outline" 
-                size="lg"
+                size="sm"
                 onClick={() => navigate('/settings')}
                 className="hidden md:inline-flex"
               >
@@ -134,7 +134,7 @@ const Navigation = () => {
               </Button>
               <Button 
                 variant="hero" 
-                size="lg"
+                size="sm"
                 onClick={() => navigate('/dashboard')}
                 className="hidden md:inline-flex"
               >
@@ -144,12 +144,12 @@ const Navigation = () => {
           ) : (
             <>
               <AuthDialog 
-                trigger={<Button variant="ghost" size="lg" className="hidden md:inline-flex">Sign in</Button>}
+                trigger={<Button variant="ghost" size="sm" className="hidden md:inline-flex">Sign in</Button>}
                 defaultTab="signin"
               />
               <Button 
                 variant="hero" 
-                size="lg" 
+                size="sm" 
                 className="hidden md:inline-flex"
                 onClick={() => navigate('/carrier-setup')}
               >
@@ -307,7 +307,7 @@ const Navigation = () => {
       )}
     </nav>
     {/* Spacer to offset fixed nav height */}
-    <div className="h-16 md:h-20" aria-hidden="true" />
+    <div className="h-14 md:h-16" aria-hidden="true" />
     {/* Bottom mobile navigation */}
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden pb-[env(safe-area-inset-bottom)]">
       <div className="grid grid-cols-5">

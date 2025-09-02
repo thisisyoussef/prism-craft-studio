@@ -1,4 +1,4 @@
-import { Helmet } from "react-helmet-async";
+import { Helmet, HelmetProvider } from "react-helmet-async";
 
 type SEOProps = {
   title?: string;
@@ -27,48 +27,50 @@ export function SEO({
   const resolvedOgImage = ogImage ?? DEFAULT_OG_IMAGE;
 
   return (
-    <Helmet prioritizeSeoTags>
-      <title>{resolvedTitle}</title>
-      <meta name="description" content={resolvedDescription} />
-      {canonicalUrl ? <link rel="canonical" href={canonicalUrl} /> : null}
+    <HelmetProvider>
+      <Helmet prioritizeSeoTags>
+        <title>{resolvedTitle}</title>
+        <meta name="description" content={resolvedDescription} />
+        {canonicalUrl ? <link rel="canonical" href={canonicalUrl} /> : null}
 
-      {/* Open Graph */}
-      <meta property="og:title" content={resolvedTitle} />
-      <meta property="og:description" content={resolvedDescription} />
-      <meta property="og:type" content="website" />
-      {canonicalUrl ? <meta property="og:url" content={canonicalUrl} /> : null}
-      <meta property="og:image" content={resolvedOgImage} />
+        {/* Open Graph */}
+        <meta property="og:title" content={resolvedTitle} />
+        <meta property="og:description" content={resolvedDescription} />
+        <meta property="og:type" content="website" />
+        {canonicalUrl ? <meta property="og:url" content={canonicalUrl} /> : null}
+        <meta property="og:image" content={resolvedOgImage} />
 
-      {/* Twitter */}
-      <meta name="twitter:card" content="summary_large_image" />
-      {/* Set your brand handle via env to avoid hardcoding */}
-      {import.meta.env.VITE_TWITTER_SITE ? (
-        <meta name="twitter:site" content={import.meta.env.VITE_TWITTER_SITE} />
-      ) : null}
-      <meta name="twitter:title" content={resolvedTitle} />
-      <meta name="twitter:description" content={resolvedDescription} />
-      <meta name="twitter:image" content={resolvedOgImage} />
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        {/* Set your brand handle via env to avoid hardcoding */}
+        {import.meta.env.VITE_TWITTER_SITE ? (
+          <meta name="twitter:site" content={import.meta.env.VITE_TWITTER_SITE} />
+        ) : null}
+        <meta name="twitter:title" content={resolvedTitle} />
+        <meta name="twitter:description" content={resolvedDescription} />
+        <meta name="twitter:image" content={resolvedOgImage} />
 
-      {noindex ? <meta name="robots" content="noindex, nofollow" /> : null}
+        {noindex ? <meta name="robots" content="noindex, nofollow" /> : null}
 
-      {schemaJsonLd ? (
-        Array.isArray(schemaJsonLd) ? (
-          schemaJsonLd.map((schema, idx) => (
+        {schemaJsonLd ? (
+          Array.isArray(schemaJsonLd) ? (
+            schemaJsonLd.map((schema, idx) => (
+              <script
+                // eslint-disable-next-line react/no-array-index-key
+                key={idx}
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+              />
+            ))
+          ) : (
             <script
-              // eslint-disable-next-line react/no-array-index-key
-              key={idx}
               type="application/ld+json"
-              dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+              dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaJsonLd) }}
             />
-          ))
-        ) : (
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaJsonLd) }}
-          />
-        )
-      ) : null}
-    </Helmet>
+          )
+        ) : null}
+      </Helmet>
+    </HelmetProvider>
   );
 }
 
