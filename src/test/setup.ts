@@ -74,9 +74,9 @@ function makeSupabaseMock() {
         }
         return { data: null, error: null };
       }),
-      insert: vi.fn(async () => ({ data: null, error: null })),
-      update: vi.fn(async () => ({ data: null, error: null })),
-      delete: vi.fn(async () => ({ data: null, error: null })),
+      insert: vi.fn(() => ({ eq: vi.fn(async () => ({ data: null, error: null })), select: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: 'p1' }, error: null })) })) })),
+      update: vi.fn((updates?: any) => ({ eq: vi.fn(async () => ({ data: { ...updates }, error: null })) })),
+      delete: vi.fn(() => ({ eq: vi.fn(async () => ({ data: null, error: null })) })),
       eq: vi.fn(() => builder),
       in: vi.fn(() => builder),
       gte: vi.fn(() => builder),
