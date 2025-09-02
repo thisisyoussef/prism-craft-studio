@@ -207,8 +207,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             sizes: order.sizes,
             product_type_key: order.productId
           },
-          artwork_files: order.artworkFiles,
-          custom_text: order.customText,
+          artwork_files: null,
+          custom_text: null,
           placement: order.placement,
           notes: order.notes,
           total_amount: order.totalAmount,

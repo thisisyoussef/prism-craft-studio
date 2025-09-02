@@ -10,13 +10,15 @@ import type { PrintPlacement, PrintLocation, PrintMethod } from '@/lib/store'
 interface PlacementEditorProps {
   placement: PrintPlacement
   placements: string[]
-  artworkFiles: File[]
   onUpdate: (id: string, patch: Partial<PrintPlacement>) => void
   onDuplicate: (id: string) => void
   onRemove: (id: string) => void
 }
 
-export default function PlacementEditor({ placement: p, placements, artworkFiles, onUpdate, onDuplicate, onRemove }: PlacementEditorProps) {
+export default function PlacementEditor({ placement: p, placements, onUpdate, onDuplicate, onRemove }: PlacementEditorProps) {
+  const filesForSelect: File[] = Array.isArray(p.artworkFiles)
+    ? (p.artworkFiles.filter((f: any) => f instanceof File) as File[])
+    : []
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="w-36">
@@ -59,7 +61,7 @@ export default function PlacementEditor({ placement: p, placements, artworkFiles
       </div>
       <div className="w-40">
         <ArtworkUploader
-          files={artworkFiles}
+          files={filesForSelect}
           valueName={(() => {
             const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
             if (f instanceof File) return f.name
@@ -67,17 +69,13 @@ export default function PlacementEditor({ placement: p, placements, artworkFiles
             return undefined
           })()}
           onSelectFileName={(val) => {
-            const file = artworkFiles.find(f => f.name === val)
+            const file = filesForSelect.find(f => f.name === val)
             if (file) onUpdate(p.id, { artworkFiles: [file] as File[] })
           }}
           onUpload={(file) => onUpdate(p.id, { artworkFiles: [file] as File[] })}
           onClear={() => onUpdate(p.id, { artworkFiles: [] })}
           inputId={`print-upload-${p.id}`}
         />
-      </div>
-      <div className="flex-1 min-w-[200px]">
-        <Label className="text-xs">Text (optional)</Label>
-        <Input value={p.customText || ''} onChange={(e) => onUpdate(p.id, { customText: e.target.value })} placeholder="Custom text for this placement" />
       </div>
       <div className="ml-auto flex items-center gap-1">
         <Button type="button" variant="ghost" size="icon" onClick={() => onUpdate(p.id, { active: !p.active })} aria-label="Toggle visibility">
