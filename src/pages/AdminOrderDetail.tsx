@@ -10,6 +10,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
+import { sendOrderUpdateEmail } from "@/lib/email";
 
 const statuses = [
   "draft",
@@ -67,6 +68,35 @@ export default function AdminOrderDetail() {
         .maybeSingle();
       if (error) throw error;
       return data as Order | null;
+    },
+    enabled: !!id,
+  });
+
+  const { data: customer } = useQuery<{ email: string | null; first_name?: string | null; last_name?: string | null } | null>({
+    queryKey: ["admin-order-customer", order?.user_id],
+    queryFn: async () => {
+      if (!order?.user_id) return null;
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("email, first_name, last_name")
+        .eq("user_id", order.user_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!order?.user_id,
+  });
+
+  const { data: payments } = useQuery<any[]>({
+    queryKey: ["admin-order-payments", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await (supabase as any)
+        .from("payments")
+        .select("phase, metadata")
+        .eq("order_id", id);
+      if (error) throw error;
+      return (data || []) as any[];
     },
     enabled: !!id,
   });
@@ -153,7 +183,29 @@ export default function AdminOrderDetail() {
           <Card>
             <CardHeader><CardTitle>Status</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <Select value={order.status} onValueChange={(val) => updateOrder.mutate({ status: val })}>
+              <Select
+                value={order.status}
+                onValueChange={(val) =>
+                  updateOrder.mutate(
+                    { status: val },
+                    {
+                      onSuccess: async () => {
+                        try {
+                          await sendOrderUpdateEmail(customer?.email || undefined, {
+                            order_number: order.order_number || order.id,
+                            order_id: order.id,
+                            status: val,
+                            notes: order.notes || null,
+                          });
+                          toast({ title: "Customer Notified", description: "Update email sent." });
+                        } catch (_e) {
+                          // Already handled inside helper with preview logs
+                        }
+                      },
+                    }
+                  )
+                }
+              >
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {statuses.map(s => (<SelectItem key={s} value={s}>{s.split('_').join(' ')}</SelectItem>))}
@@ -207,6 +259,111 @@ export default function AdminOrderDetail() {
               <div className="text-sm text-muted-foreground">No updates yet.</div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 grid md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader><CardTitle>Customer Communication</CardTitle></CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  try {
+                    await sendOrderUpdateEmail(customer?.email || undefined, {
+                      order_number: order.order_number || order.id,
+                      order_id: order.id,
+                      status: order.status || undefined,
+                      notes: order.notes || null,
+                    });
+                    toast({ title: "Resent", description: "Order update email resent." });
+                  } catch (_e) {}
+                }}
+              >
+                Resend Update Email
+              </Button>
+
+              <Button
+                onClick={async () => {
+                  try {
+                    const { data, error } = await (supabase as any).functions.invoke("create-invoice", {
+                      body: { order_id: order.id, phase: "deposit" },
+                    });
+                    if (error) throw error;
+                    const url = (data as any)?.url as string | undefined;
+                    toast({ title: "Deposit Invoice Sent", description: url ? `Link: ${url}` : "Sent via Stripe" });
+                  } catch (e: any) {
+                    toast({ title: "Failed", description: String(e?.message || e), variant: "destructive" as any });
+                  }
+                }}
+              >
+                Send Deposit Invoice
+              </Button>
+
+              <Button
+                onClick={async () => {
+                  try {
+                    const { data, error } = await (supabase as any).functions.invoke("create-invoice", {
+                      body: { order_id: order.id, phase: "balance" },
+                    });
+                    if (error) throw error;
+                    const url = (data as any)?.url as string | undefined;
+                    toast({ title: "Balance Invoice Sent", description: url ? `Link: ${url}` : "Sent via Stripe" });
+                  } catch (e: any) {
+                    toast({ title: "Failed", description: String(e?.message || e), variant: "destructive" as any });
+                  }
+                }}
+              >
+                Send Balance Invoice
+              </Button>
+
+              {(() => {
+                const depMeta = (payments || []).find(p => p.phase === 'deposit')?.metadata || null;
+                const balMeta = (payments || []).find(p => p.phase === 'balance')?.metadata || null;
+                const depInvoiceId = depMeta?.stripe_invoice_id as string | undefined;
+                const balInvoiceId = balMeta?.stripe_invoice_id as string | undefined;
+                return (
+                  <>
+                    {depInvoiceId && (
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const { error } = await (supabase as any).functions.invoke("create-invoice", {
+                              body: { action: "resend", invoice_id: depInvoiceId },
+                            });
+                            if (error) throw error;
+                            toast({ title: "Deposit Invoice Resent" });
+                          } catch (e: any) {
+                            toast({ title: "Failed", description: String(e?.message || e), variant: "destructive" as any });
+                          }
+                        }}
+                      >
+                        Resend Deposit Invoice
+                      </Button>
+                    )}
+                    {balInvoiceId && (
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const { error } = await (supabase as any).functions.invoke("create-invoice", {
+                              body: { action: "resend", invoice_id: balInvoiceId },
+                            });
+                            if (error) throw error;
+                            toast({ title: "Balance Invoice Resent" });
+                          } catch (e: any) {
+                            toast({ title: "Failed", description: String(e?.message || e), variant: "destructive" as any });
+                          }
+                        }}
+                      >
+                        Resend Balance Invoice
+                      </Button>
+                    )}
+                  </>
+                )
+              })()}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
