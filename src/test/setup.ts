@@ -68,10 +68,19 @@ function makeSupabaseMock() {
         return { data: [], error: null };
       }),
       maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+      single: vi.fn(async () => {
+        if (table === 'orders') {
+          return { data: { id: '123', order_number: 'ORD-123', status: 'draft', total_amount: 100, created_at: new Date().toISOString(), products: { name: 'Prod', image_url: null } }, error: null };
+        }
+        return { data: null, error: null };
+      }),
       insert: vi.fn(async () => ({ data: null, error: null })),
       update: vi.fn(async () => ({ data: null, error: null })),
       delete: vi.fn(async () => ({ data: null, error: null })),
       eq: vi.fn(() => builder),
+      in: vi.fn(() => builder),
+      gte: vi.fn(() => builder),
+      lte: vi.fn(() => builder),
     };
     return builder;
   };
@@ -79,9 +88,46 @@ function makeSupabaseMock() {
   const storageBucket = {
     upload: vi.fn(async () => ({ data: null, error: null })),
     getPublicUrl: vi.fn(() => ({ data: { publicUrl: 'http://example.com/image.png' } })),
+    createSignedUrl: vi.fn(async () => ({ data: { signedUrl: 'http://example.com/signed.png' }, error: null })),
   };
   const supabase: any = {
-    from: vi.fn((table: string) => createQueryBuilder(table)),
+    from: vi.fn((table: string) => {
+      const qb = createQueryBuilder(table);
+      // Hook into payments/production_updates to return arrays
+      if (table === 'payments') {
+        return {
+          select: vi.fn(() => ({
+            order: vi.fn(() => ({
+              eq: vi.fn(async () => ({
+                data: [
+                  { phase: 'deposit', amount_cents: 4000, status: 'requires_payment_method' },
+                  { phase: 'balance', amount_cents: 6000, status: 'requires_payment_method' },
+                ],
+                error: null,
+              })),
+            })),
+            eq: vi.fn(async () => ({
+              data: [
+                { phase: 'deposit', amount_cents: 4000, status: 'requires_payment_method' },
+                { phase: 'balance', amount_cents: 6000, status: 'requires_payment_method' },
+              ],
+              error: null,
+            })),
+          }))
+        } as any;
+      }
+      if (table === 'production_updates') {
+        return {
+          select: vi.fn(() => ({ eq: vi.fn(async () => ({ data: [], error: null })) }))
+        } as any;
+      }
+      if (table === 'profiles') {
+        return {
+          select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { role: 'user' }, error: null })) })) }))
+        } as any;
+      }
+      return qb;
+    }),
     storage: { from: vi.fn(() => storageBucket) },
     auth: {
       getSession: vi.fn(async () => ({ data: { session: null } })),
@@ -90,7 +136,9 @@ function makeSupabaseMock() {
       signUp: vi.fn(async () => ({ data: { user: { id: 'u1', email: 'test@example.com' } } })),
       signOut: vi.fn(async () => ({ error: null })),
       updateUser: vi.fn(async () => ({ data: {}, error: null })),
+      getUser: vi.fn(async () => ({ data: { user: { id: 'u1' } } })),
     },
+    channel: vi.fn(() => ({ on: vi.fn(() => ({ on: vi.fn(() => ({ subscribe: vi.fn(() => ({ data: {}, error: null })) })) })) })),
   };
   return { supabase };
 }

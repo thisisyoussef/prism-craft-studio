@@ -6,9 +6,14 @@ import { useAuthStore } from '@/lib/store';
 describe('OrderDetails page', () => {
   it('renders basic layout without crashing', () => {
     useAuthStore.setState({ user: { id: 'u1', email: 'e@example.com' } as any, loading: false });
-    renderWithAppProviders(<OrderDetails />, { route: '/orders/123' });
-    // There is no specific static text; ensure component mounted by checking presence of document body
+    renderWithAppProviders(<OrderDetails />, { route: '/orders/123', path: '/orders/:id' });
     expect(document.body).toBeInTheDocument();
+  });
+
+  it('shows order details heading', () => {
+    useAuthStore.setState({ user: { id: 'u1', email: 'e@example.com' } as any, loading: false });
+    renderWithAppProviders(<OrderDetails />, { route: '/orders/123', path: '/orders/:id' });
+    expect(screen.getByText(/order details/i)).toBeInTheDocument();
   });
 });
 

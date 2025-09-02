@@ -11,6 +11,10 @@ describe('Settings page', () => {
     // Check for common labels present on the page
     expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
+    expect(screen.getByText(/account settings/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/save/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/saved addresses/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/add/i)[0]).toBeInTheDocument();
   });
 });
 
