@@ -123,7 +123,8 @@ function makeSupabaseMock() {
       }
       if (table === 'profiles') {
         return {
-          select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { role: 'user' }, error: null })) })) }))
+          select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { role: 'user' }, error: null })) })) })),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ data: {}, error: null })) })),
         } as any;
       }
       return qb;
