@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ScrollReveal, ScrollStagger } from "@/components/ScrollReveal";
+import SEO from "@/components/SEO";
+import { getCanonicalUrl } from "@/lib/seo";
 
 const Dashboard = () => {
   const { user, loading } = useAuthStore();
@@ -22,6 +24,7 @@ const Dashboard = () => {
 
   return (
     <div className="relative min-h-screen bg-background">
+      <SEO title="Your account" canonicalUrl={getCanonicalUrl('/dashboard')} noindex />
       <Navigation />
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-8">
         <ScrollReveal variant="fade-up" distancePx={18}>
