@@ -110,6 +110,10 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Card secondary should not be cream in dark mode */
+    --card-secondary: 217.2 32.6% 17.5%;
+    /* Subtle gradient tuned for dark surfaces */
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(var(--secondary)));
   }
 }
 
