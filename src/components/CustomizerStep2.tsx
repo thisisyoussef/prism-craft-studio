@@ -328,13 +328,13 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
               <CardTitle className="text-lg">Product summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <span>Product:</span>
-                <span className="font-medium">{productInfo?.name || 'Loading...'}</span>
+                <span className="font-medium sm:text-right break-words">{productInfo?.name || 'Loading...'}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <span>Print locations:</span>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1 sm:justify-end">
                   {prints.map(p => (
                     <Badge key={p.id} variant="outline" className="text-xs">{p.location}</Badge>
                   ))}
@@ -351,9 +351,9 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Total Quantity Input */}
-              <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 p-4 bg-muted/50 rounded-lg">
                 <Label className="font-medium">Total quantity:</Label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <Button 
                     type="button" 
                     variant="outline" 
@@ -368,7 +368,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
                     min={25}
                     value={totalQuantity}
                     onChange={(e) => setTotalQuantity(parseInt(e.target.value || '25'))}
-                    className="w-20 text-center"
+                    className="w-16 sm:w-20 text-center"
                   />
                   <Button 
                     type="button" 
@@ -544,7 +544,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-6 border-t">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t">
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to design
