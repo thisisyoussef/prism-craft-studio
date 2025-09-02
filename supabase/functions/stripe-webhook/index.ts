@@ -54,11 +54,22 @@ Deno.serve(async (req) => {
   const signature = req.headers.get('stripe-signature')
   const body = await req.text()
 
+  console.log('Webhook signature:', signature ? 'present' : 'missing')
+  console.log('Webhook secret configured:', webhookSecret ? 'yes' : 'no')
+  console.log('Body length:', body.length)
+
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(body, signature as string, webhookSecret)
+    event = await stripe.webhooks.constructEventAsync(body, signature as string, webhookSecret)
   } catch (err: any) {
-    return new Response(`Webhook Error: ${err.message}`, { status: 400 })
+    console.error('Webhook signature validation failed:', err.message)
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: `Invalid webhook signature: ${err.message}` 
+    }), { 
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -124,12 +135,18 @@ Deno.serve(async (req) => {
             })
           }
 
-          // Optionally advance order status on deposit or balance
+          // Advance order status on deposit or balance payment
           if (phase === 'deposit') {
-            await supabase.from('orders').update({ status: 'pending' }).eq('id', orderId)
+            await supabase.from('orders').update({ 
+              status: 'deposit_paid',
+              deposit_paid_at: new Date().toISOString()
+            }).eq('id', orderId)
           }
           if (phase === 'balance') {
-            await supabase.from('orders').update({ status: 'confirmed' }).eq('id', orderId)
+            await supabase.from('orders').update({ 
+              status: 'balance_paid',
+              balance_paid_at: new Date().toISOString()
+            }).eq('id', orderId)
           }
 
           // Send receipts (best-effort): fetch order + profile email

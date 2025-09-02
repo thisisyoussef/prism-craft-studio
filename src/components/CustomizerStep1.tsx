@@ -14,8 +14,8 @@ import GarmentMockup, { type GarmentType } from './GarmentMockups'
 
 interface CustomizerStep1Props {
   onNext: () => void
-  onDataChange?: (data: { selectedProduct: string; selectedColors: string[] }) => void
-  designData?: { selectedProduct: string; selectedColors: string[] }
+  onDataChange?: (data: { selectedProduct: string }) => void
+  designData?: { selectedProduct: string }
 }
 
 // Helper functions from original customizer
@@ -67,7 +67,6 @@ function overlayStyleFor(p: PrintPlacement, bounds: Bounds): CSSProperties {
 
 const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Props) => {
   const [selectedProduct, setSelectedProduct] = useState(designData?.selectedProduct || '')
-  const [selectedColors, setSelectedColors] = useState<string[]>(designData?.selectedColors || [])
   const [selectedBaseColor, setSelectedBaseColor] = useState<string>('White')
   const [selectedView, setSelectedView] = useState<'front' | 'back' | 'sleeve'>('front')
   const [zoom, setZoom] = useState<number>(1)
@@ -111,6 +110,7 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
       const first = products[0]!
       setSelectedProduct(first.id)
       updateProductType(first.id)
+      onDataChange?.({ selectedProduct: first.id })
     }
   }, [products, selectedProduct, updateProductType])
 
@@ -193,39 +193,34 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
     setArtworkFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const toggleColor = (color: string) => {
-    const newColors = selectedColors.includes(color) 
-      ? selectedColors.filter(c => c !== color) 
-      : [...selectedColors, color]
-    setSelectedColors(newColors)
-    onDataChange?.({ selectedProduct, selectedColors: newColors })
-  }
 
   const isDesignComplete = useMemo(() => {
-    return Boolean(selectedProduct) && selectedColors.length > 0 && prints.length > 0
-  }, [selectedProduct, selectedColors, prints])
+    return Boolean(selectedProduct) && prints.length > 0
+  }, [selectedProduct, prints])
 
-  // Cleanup blob URLs
+  // Cleanup blob URLs - only cleanup on unmount to prevent premature revocation
   useEffect(() => {
-    const inUse = new Set<string>()
+    // Don't cleanup during component lifecycle, only ensure URLs are created
     prints.forEach(p => {
       const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
       if (f instanceof File) {
         const key = `${p.id}::${f.name}::${f.lastModified}::${f.size}`
-        inUse.add(key)
+        if (!urlCache.current[key]) {
+          urlCache.current[key] = URL.createObjectURL(f)
+        }
       }
     })
-    Object.keys(urlCache.current).forEach(key => {
-      if (!inUse.has(key)) {
-        try { URL.revokeObjectURL(urlCache.current[key]) } catch {}
-        delete urlCache.current[key]
-      }
-    })
+  }, [prints])
+
+  // Cleanup all URLs on unmount
+  useEffect(() => {
     return () => {
-      Object.values(urlCache.current).forEach(u => { try { URL.revokeObjectURL(u) } catch {} })
+      Object.values(urlCache.current).forEach(u => { 
+        try { URL.revokeObjectURL(u) } catch {} 
+      })
       urlCache.current = {}
     }
-  }, [prints])
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -246,7 +241,7 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
               onValueChange={(value) => {
                 setSelectedProduct(value)
                 updateProductType(value)
-                onDataChange?.({ selectedProduct: value, selectedColors })
+                onDataChange?.({ selectedProduct: value })
               }}
             >
               <SelectTrigger>
@@ -280,25 +275,6 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
             </div>
           </div>
 
-          {/* Print Colors */}
-          <div className="space-y-3">
-            <Label>Print colors * ({selectedColors.length} selected)</Label>
-            <div className="flex flex-wrap gap-3">
-              {colors.map((color) => (
-                <div key={color} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className={`w-7 h-7 rounded-full border ${selectedColors.includes(color) ? 'ring-2 ring-primary' : 'border-border'}`}
-                    style={{ backgroundColor: colorSwatches[color] }}
-                    onClick={() => toggleColor(color)}
-                    aria-label={color}
-                    title={color}
-                  />
-                  <span className="text-xs">{color}</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
           {/* Customization Method */}
           <div className="space-y-3">

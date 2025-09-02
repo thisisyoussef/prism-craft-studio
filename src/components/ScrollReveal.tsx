@@ -74,17 +74,17 @@ export function ScrollReveal({
         opacity: 0,
       }
 
+  if (asChild) {
+    return React.cloneElement(children as any, {
+      ref,
+      className: cn(baseHidden, (children as any)?.props?.className, className),
+      style: { ...(children as any)?.props?.style, ...style },
+    })
+  }
+
   return (
-    <Comp {...(asChild ? {} : { ref, className: cn(baseHidden, className), style })}>
-      {asChild ? (
-        React.cloneElement(children as any, {
-          ref,
-          className: cn(baseHidden, (children as any)?.props?.className, className),
-          style: { ...(children as any)?.props?.style, ...style },
-        })
-      ) : (
-        children
-      )}
+    <Comp ref={ref} className={cn(baseHidden, className)} style={style}>
+      {children}
     </Comp>
   )
 }
@@ -117,7 +117,7 @@ export function ScrollStagger({
   const childArray = React.Children.toArray(children)
 
   return (
-    <div ref={ref} className={cn(className)}>
+    <div ref={ref as any} className={cn(className)}>
       {childArray.map((child, idx) => (
         <ScrollReveal
           key={idx}

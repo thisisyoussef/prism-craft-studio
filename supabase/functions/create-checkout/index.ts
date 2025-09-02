@@ -106,6 +106,8 @@ Deno.serve(async (req) => {
       metadata: { orderId, phase },
     })
 
+    console.log(`Created checkout session ${session.id} for order ${orderId} phase ${phase}`)
+
     // Best-effort: mark payment as processing immediately with session id so UI reflects progress after redirect
     try {
       const supabase = createClient(supabaseUrl, serviceKey)

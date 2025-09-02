@@ -41,7 +41,7 @@ const Navigation = () => {
 
   return (
     <>
-    <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 md:px-6 py-2 md:py-3 pt-[env(safe-area-inset-top)] md:pt-0">
+    <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 md:px-6 py-4 md:py-6">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="text-2xl font-medium tracking-tight text-foreground">
           <Link to="/">PTRN</Link>
@@ -184,9 +184,9 @@ const Navigation = () => {
             if (e.key === 'Escape') setOpen(false);
           }}
         >
-          <div className="absolute left-4 right-4 mt-3 rounded-lg border bg-popover text-popover-foreground shadow-lg origin-top transition-all duration-200 ease-out animate-in fade-in-0 zoom-in-95">
-            <div className="p-2">
-              <div className="grid gap-1">
+          <div className="absolute left-4 right-4 mt-4 rounded-lg border bg-popover text-popover-foreground shadow-lg origin-top transition-all duration-200 ease-out animate-in fade-in-0 zoom-in-95">
+            <div className="p-4">
+              <div className="grid gap-2">
                 <Link
                   to="/catalog"
                   className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/catalog') ? 'bg-accent/60 text-accent-foreground' : ''}`}
@@ -223,7 +223,7 @@ const Navigation = () => {
                   Case Studies
                 </Link>
               </div>
-              <div className="my-2 h-px bg-border" />
+              <div className="my-3 h-px bg-border" />
               {user ? (
                 <div className="grid gap-2 p-1">
                   {profile?.role === 'admin' ? (
@@ -309,7 +309,7 @@ const Navigation = () => {
       )}
     </nav>
     {/* Spacer to offset fixed nav height */}
-    <div className="h-14 md:h-16" aria-hidden="true" />
+    <div className="h-20 md:h-24" aria-hidden="true" />
     {/* Bottom mobile navigation */}
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden pb-[env(safe-area-inset-bottom)]">
       <div className="grid grid-cols-5">

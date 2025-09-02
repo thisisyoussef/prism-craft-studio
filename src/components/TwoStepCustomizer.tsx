@@ -7,10 +7,8 @@ const TwoStepCustomizer = () => {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1)
   const [designData, setDesignData] = useState<{
     selectedProduct: string
-    selectedColors: string[]
   }>({
-    selectedProduct: '',
-    selectedColors: []
+    selectedProduct: ''
   })
 
   const { prints } = usePricingStore()
@@ -18,13 +16,9 @@ const TwoStepCustomizer = () => {
   const handleStep1Next = () => {
     // Get current state from pricing store and local state
     const product = designData.selectedProduct
-    const colors = designData.selectedColors
     
-    // Validate required fields
-    if (!product || colors.length === 0 || prints.length === 0) {
-      return // Step1 component handles validation UI
-    }
-
+    // Validate required fields - let Step1 component handle its own validation
+    // The button is already disabled based on isDesignComplete logic
     setCurrentStep(2)
   }
 
@@ -49,7 +43,6 @@ const TwoStepCustomizer = () => {
         <CustomizerStep2 
           onBack={handleStep2Back}
           selectedProduct={designData.selectedProduct}
-          selectedColors={designData.selectedColors}
         />
       )}
     </div>

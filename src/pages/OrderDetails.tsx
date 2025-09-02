@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useOrderStore, useAuthStore } from '@/lib/store'
 import { supabase } from '@/integrations/supabase/client'
+import { OrderService } from '@/lib/services/orderService'
 import toast from 'react-hot-toast'
 import { serverErrorMessage } from '@/lib/errors'
 import { ScrollReveal, ScrollStagger } from '@/components/ScrollReveal'
@@ -216,6 +217,36 @@ const OrderDetails = () => {
     }
   }
 
+  const fetchUpdates = async (orderData: any) => {
+    if (!orderData?.id) return
+    const { data: updRows } = await (supabase as any)
+      .from('production_updates')
+      .select('id, stage, status, description, photos, created_at')
+      .eq('order_id', orderData.id)
+    if (Array.isArray(updRows)) {
+      const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setUpdates(sorted as any)
+    }
+  }
+
+  const fetchArtworkUrls = async (orderData: any) => {
+    if (!orderData?.artwork_files?.length) return
+    const urls: Record<string, string> = {}
+    for (const filePath of orderData.artwork_files) {
+      try {
+        const { data } = await supabase.storage
+          .from('artwork')
+          .createSignedUrl(filePath, 3600)
+        if (data?.signedUrl) {
+          urls[filePath] = data.signedUrl
+        }
+      } catch (e) {
+        console.warn('Failed to get signed URL for:', filePath, e)
+      }
+    }
+    setArtworkUrls(urls)
+  }
+
   useEffect(() => {
     const run = async () => {
       // Guard: avoid querying when id is the placeholder 'new' or missing
@@ -228,7 +259,7 @@ const OrderDetails = () => {
         setLoading(true)
         const { data: orderData, error: orderErr } = await supabase
           .from('orders')
-          .select('*, products(name, image_url)')
+          .select('*')
           .eq('id', id)
           .single()
         if (orderErr) throw orderErr
@@ -239,22 +270,12 @@ const OrderDetails = () => {
           .select('phase, amount_cents, status')
           .eq('order_id', id)
         if (payErr) throw payErr
-
         const byPhase: any = { deposit: null, balance: null }
-        ;(paymentRows || []).forEach((p: PaymentRow) => {
-          byPhase[p.phase] = p
-        })
+        ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
         setPayments(byPhase)
 
-        // Load production updates (best-effort)
-        const { data: updRows, error: updErr } = await (supabase as any)
-          .from('production_updates')
-          .select('id, stage, status, description, photos, created_at')
-          .eq('order_id', id)
-        if (!updErr && Array.isArray(updRows)) {
-          const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          setUpdates(sorted as any)
-        }
+        await fetchUpdates(orderData)
+        await fetchArtworkUrls(orderData)
 
         // Determine admin/moderator role
         if (user?.id) {
@@ -291,6 +312,54 @@ const OrderDetails = () => {
       const byPhase: any = { deposit: null, balance: null }
       ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
       setPayments(byPhase)
+    }
+
+    // Set up real-time subscriptions for live updates
+    const paymentSubscription = supabase
+      .channel(`payments-${id}`)
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'payments',
+          filter: `order_id=eq.${id}`
+        }, 
+        (payload) => {
+          // Update payment status in real-time
+          const updatedPayment = payload.new as any
+          if (updatedPayment) {
+            setPayments(prev => ({
+              ...prev,
+              [updatedPayment.phase]: updatedPayment
+            }))
+          }
+        }
+      )
+      .subscribe()
+
+    const orderSubscription = supabase
+      .channel(`order-${id}`)
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'orders',
+          filter: `id=eq.${id}`
+        }, 
+        (payload) => {
+          // Update order status in real-time
+          const updatedOrder = payload.new as any
+          if (updatedOrder) {
+            setOrder(updatedOrder)
+          }
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscriptions
+    return () => {
+      paymentSubscription.unsubscribe()
+      orderSubscription.unsubscribe()
     }
     const refetchOrder = async () => {
       const { data: orderData } = await supabase
@@ -373,7 +442,7 @@ const OrderDetails = () => {
           try {
             const { data: orderData } = await supabase
               .from('orders')
-              .select('*, products(name, image_url)')
+              .select('*')
               .eq('id', id)
               .single()
             if (orderData) setOrder(orderData)
@@ -403,7 +472,7 @@ const OrderDetails = () => {
             try {
               const { data: orderData } = await supabase
                 .from('orders')
-                .select('*, products(name, image_url)')
+                .select('*')
                 .eq('id', id)
                 .single()
               if (orderData) setOrder(orderData)

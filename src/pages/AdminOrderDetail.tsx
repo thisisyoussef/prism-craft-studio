@@ -63,7 +63,7 @@ export default function AdminOrderDetail() {
       if (!id) return null;
       const { data, error } = await (supabase as any)
         .from("orders")
-        .select("id, order_number, company_id, user_id, product_id, quantity, total_amount, status, notes, created_at, updated_at, products(name, image_url)")
+        .select("id, order_number, company_id, user_id, product_id, product_name, quantity, total_amount, status, admin_notes, created_at, updated_at")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
@@ -218,9 +218,9 @@ export default function AdminOrderDetail() {
             <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
             <CardContent>
               <Input
-                defaultValue={order.notes ?? ''}
+                defaultValue={(order as any).admin_notes ?? ''}
                 placeholder="Internal notes"
-                onBlur={(e) => updateOrder.mutate({ notes: e.currentTarget.value })}
+                onBlur={(e) => updateOrder.mutate({ admin_notes: e.currentTarget.value } as any)}
               />
             </CardContent>
           </Card>

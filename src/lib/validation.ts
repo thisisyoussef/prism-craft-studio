@@ -53,7 +53,6 @@ const sizeQtySchema = z.record(z.string(), z.number().nonnegative())
 
 export const customizerSchema = z.object({
   productId: z.string().min(1, 'Select a product'),
-  selectedColors: z.array(z.string()).min(1, 'Select at least one print color'),
   sizesQty: sizeQtySchema.refine(
     (rec) => Object.values(rec).reduce((a, b) => a + (b || 0), 0) >= 50,
     'Enter size quantities totaling at least 50 pieces'

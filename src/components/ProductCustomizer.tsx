@@ -258,28 +258,39 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     setValue('prints', prints, { shouldValidate: true })
   }, [prints])
 
-  // Cleanup unused blob URLs when prints/artwork change
+  // Cleanup unused blob URLs when prints/artwork  // Cleanup blob URLs with debouncing to prevent premature cleanup
   useEffect(() => {
-    const inUse = new Set<string>()
-    prints.forEach(p => {
-      const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
-      if (f instanceof File) {
-        const key = `${p.id}::${f.name}::${f.lastModified}::${f.size}`
-        inUse.add(key)
-      }
-    })
-    Object.keys(urlCache.current).forEach(key => {
-      if (!inUse.has(key)) {
-        try { URL.revokeObjectURL(urlCache.current[key]) } catch {}
-        delete urlCache.current[key]
-      }
-    })
+    const timeoutId = setTimeout(() => {
+      const inUse = new Set<string>()
+      prints.forEach(p => {
+        const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
+        if (f instanceof File) {
+          const key = `${p.id}::${f.name}::${f.lastModified}::${f.size}`
+          inUse.add(key)
+        }
+      })
+      Object.keys(urlCache.current).forEach(key => {
+        if (!inUse.has(key)) {
+          try { URL.revokeObjectURL(urlCache.current[key]) } catch {}
+          delete urlCache.current[key]
+        }
+      })
+    }, 100) // Small delay to allow images to load
+
     return () => {
-      // On unmount, revoke all
-      Object.values(urlCache.current).forEach(u => { try { URL.revokeObjectURL(u) } catch {} })
-      urlCache.current = {}
+      clearTimeout(timeoutId)
     }
   }, [prints])
+
+  // Cleanup all URLs on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(urlCache.current).forEach(u => { 
+        try { URL.revokeObjectURL(u) } catch {} 
+      })
+      urlCache.current = {}
+    }
+  }, [])
 
   
 

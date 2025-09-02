@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          address1: string
+          address2: string | null
+          city: string
+          company: string | null
+          country: string
+          created_at: string
+          full_name: string | null
+          id: string
+          is_default_billing: boolean
+          is_default_shipping: boolean
+          label: string | null
+          phone: string | null
+          postal_code: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address1: string
+          address2?: string | null
+          city: string
+          company?: string | null
+          country?: string
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_default_billing?: boolean
+          is_default_shipping?: boolean
+          label?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address1?: string
+          address2?: string | null
+          city?: string
+          company?: string | null
+          country?: string
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_default_billing?: boolean
+          is_default_shipping?: boolean
+          label?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           address: string | null
@@ -41,119 +98,6 @@ export type Database = {
           name?: string
           phone?: string | null
           updated_at?: string
-        }
-        Relationships: []
-      }
-      payments: {
-        Row: {
-          id: string
-          created_at: string
-          updated_at: string
-          order_id: string
-          phase: Database["public"]["Enums"]["payment_phase"]
-          amount_cents: number
-          currency: string
-          status: Database["public"]["Enums"]["payment_status"]
-          paid_at: string | null
-          stripe_checkout_session_id: string | null
-          stripe_payment_intent_id: string | null
-          stripe_charge_id: string | null
-          metadata: Json | null
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          updated_at?: string
-          order_id: string
-          phase: Database["public"]["Enums"]["payment_phase"]
-          amount_cents: number
-          currency?: string
-          status?: Database["public"]["Enums"]["payment_status"]
-          paid_at?: string | null
-          stripe_checkout_session_id?: string | null
-          stripe_payment_intent_id?: string | null
-          stripe_charge_id?: string | null
-          metadata?: Json | null
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          updated_at?: string
-          order_id?: string
-          phase?: Database["public"]["Enums"]["payment_phase"]
-          amount_cents?: number
-          currency?: string
-          status?: Database["public"]["Enums"]["payment_status"]
-          paid_at?: string | null
-          stripe_checkout_session_id?: string | null
-          stripe_payment_intent_id?: string | null
-          stripe_charge_id?: string | null
-          metadata?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      addresses: {
-        Row: {
-          id: string
-          created_at: string
-          updated_at: string
-          user_id: string
-          label: string | null
-          full_name: string | null
-          company: string | null
-          phone: string | null
-          address1: string
-          address2: string | null
-          city: string
-          state: string | null
-          postal_code: string | null
-          country: string
-          is_default_shipping: boolean
-          is_default_billing: boolean
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          updated_at?: string
-          user_id: string
-          label?: string | null
-          full_name?: string | null
-          company?: string | null
-          phone?: string | null
-          address1: string
-          address2?: string | null
-          city: string
-          state?: string | null
-          postal_code?: string | null
-          country?: string
-          is_default_shipping?: boolean
-          is_default_billing?: boolean
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          updated_at?: string
-          user_id?: string
-          label?: string | null
-          full_name?: string | null
-          company?: string | null
-          phone?: string | null
-          address1?: string
-          address2?: string | null
-          city?: string
-          state?: string | null
-          postal_code?: string | null
-          country?: string
-          is_default_shipping?: boolean
-          is_default_billing?: boolean
         }
         Relationships: []
       }
@@ -204,61 +148,150 @@ export type Database = {
           },
         ]
       }
+      order_timeline: {
+        Row: {
+          created_at: string
+          description: string
+          event_data: Json
+          event_type: string
+          id: string
+          order_id: string
+          trigger_source: string | null
+          triggered_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          event_data?: Json
+          event_type: string
+          id?: string
+          order_id: string
+          trigger_source?: string | null
+          triggered_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          event_data?: Json
+          event_type?: string
+          id?: string
+          order_id?: string
+          trigger_source?: string | null
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_timeline_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
-          artwork_files: string[] | null
-          colors: string[] | null
+          actual_delivery: string | null
+          admin_notes: string | null
+          artwork_files: Json | null
+          balance_amount: number
+          balance_paid_at: string | null
+          colors: string[]
           company_id: string | null
           created_at: string
-          custom_text: string | null
-          customization_details: Json | null
+          customer_notes: string | null
+          customization: Json
+          deposit_amount: number
+          deposit_paid_at: string | null
+          estimated_delivery: string | null
           id: string
-          notes: string | null
-          order_number: string | null
-          placement: string | null
+          labels: string[] | null
+          order_number: string
+          print_locations: Json
+          priority: string | null
+          product_category: string
           product_id: string | null
+          product_name: string
+          production_notes: string | null
           quantity: number
-          sizes: string[] | null
-          status: Database["public"]["Enums"]["order_status"] | null
-          total_amount: number | null
+          shipping_address: Json | null
+          sizes: Json
+          status: string
+          stripe_balance_payment_intent: string | null
+          stripe_deposit_payment_intent: string | null
+          total_amount: number
+          tracking_number: string | null
+          unit_price: number
           updated_at: string
           user_id: string
         }
         Insert: {
-          artwork_files?: string[] | null
-          colors?: string[] | null
+          actual_delivery?: string | null
+          admin_notes?: string | null
+          artwork_files?: Json | null
+          balance_amount?: number
+          balance_paid_at?: string | null
+          colors?: string[]
           company_id?: string | null
           created_at?: string
-          custom_text?: string | null
-          customization_details?: Json | null
+          customer_notes?: string | null
+          customization?: Json
+          deposit_amount?: number
+          deposit_paid_at?: string | null
+          estimated_delivery?: string | null
           id?: string
-          notes?: string | null
-          order_number?: string | null
-          placement?: string | null
+          labels?: string[] | null
+          order_number: string
+          print_locations?: Json
+          priority?: string | null
+          product_category: string
           product_id?: string | null
-          quantity?: number
-          sizes?: string[] | null
-          status?: Database["public"]["Enums"]["order_status"] | null
-          total_amount?: number | null
+          product_name: string
+          production_notes?: string | null
+          quantity: number
+          shipping_address?: Json | null
+          sizes?: Json
+          status?: string
+          stripe_balance_payment_intent?: string | null
+          stripe_deposit_payment_intent?: string | null
+          total_amount: number
+          tracking_number?: string | null
+          unit_price: number
           updated_at?: string
           user_id: string
         }
         Update: {
-          artwork_files?: string[] | null
-          colors?: string[] | null
+          actual_delivery?: string | null
+          admin_notes?: string | null
+          artwork_files?: Json | null
+          balance_amount?: number
+          balance_paid_at?: string | null
+          colors?: string[]
           company_id?: string | null
           created_at?: string
-          custom_text?: string | null
-          customization_details?: Json | null
+          customer_notes?: string | null
+          customization?: Json
+          deposit_amount?: number
+          deposit_paid_at?: string | null
+          estimated_delivery?: string | null
           id?: string
-          notes?: string | null
-          order_number?: string | null
-          placement?: string | null
+          labels?: string[] | null
+          order_number?: string
+          print_locations?: Json
+          priority?: string | null
+          product_category?: string
           product_id?: string | null
+          product_name?: string
+          production_notes?: string | null
           quantity?: number
-          sizes?: string[] | null
-          status?: Database["public"]["Enums"]["order_status"] | null
-          total_amount?: number | null
+          shipping_address?: Json | null
+          sizes?: Json
+          status?: string
+          stripe_balance_payment_intent?: string | null
+          stripe_deposit_payment_intent?: string | null
+          total_amount?: number
+          tracking_number?: string | null
+          unit_price?: number
           updated_at?: string
           user_id?: string
         }
@@ -275,6 +308,177 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json | null
+          order_id: string
+          paid_at: string | null
+          phase: string
+          status: string
+          stripe_charge_id: string | null
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          order_id: string
+          paid_at?: string | null
+          phase: string
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string
+          paid_at?: string | null
+          phase?: string
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_variants: {
+        Row: {
+          active: boolean
+          back_image_url: string | null
+          color_hex: string
+          color_name: string
+          created_at: string
+          front_image_url: string | null
+          id: string
+          image_url: string | null
+          price: number | null
+          product_id: string
+          sleeve_image_url: string | null
+          stock: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          back_image_url?: string | null
+          color_hex: string
+          color_name: string
+          created_at?: string
+          front_image_url?: string | null
+          id?: string
+          image_url?: string | null
+          price?: number | null
+          product_id: string
+          sleeve_image_url?: string | null
+          stock?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          back_image_url?: string | null
+          color_hex?: string
+          color_name?: string
+          created_at?: string
+          front_image_url?: string | null
+          id?: string
+          image_url?: string | null
+          price?: number | null
+          product_id?: string
+          sleeve_image_url?: string | null
+          stock?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_updates: {
+        Row: {
+          actual_completion: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          documents: Json | null
+          estimated_completion: string | null
+          id: string
+          order_id: string
+          photos: Json | null
+          stage: string
+          status: string
+          title: string
+          updated_at: string
+          visible_to_customer: boolean | null
+        }
+        Insert: {
+          actual_completion?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          documents?: Json | null
+          estimated_completion?: string | null
+          id?: string
+          order_id: string
+          photos?: Json | null
+          stage: string
+          status: string
+          title: string
+          updated_at?: string
+          visible_to_customer?: boolean | null
+        }
+        Update: {
+          actual_completion?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          documents?: Json | null
+          estimated_completion?: string | null
+          id?: string
+          order_id?: string
+          photos?: Json | null
+          stage?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          visible_to_customer?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_updates_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -416,18 +620,22 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "samples_converted_order_id_fkey"
-            columns: ["converted_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      admin_user: {
+        Row: {
+          id: string | null
+        }
+        Insert: {
+          id?: string | null
+        }
+        Update: {
+          id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       generate_order_number: {
@@ -437,6 +645,10 @@ export type Database = {
       generate_sample_number: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      is_admin: {
+        Args: { uid: string }
+        Returns: boolean
       }
     }
     Enums: {
@@ -450,12 +662,7 @@ export type Database = {
         | "shipped"
         | "delivered"
         | "cancelled"
-      sample_status:
-        | "pending"
-        | "approved"
-        | "shipped"
-        | "delivered"
-        | "converted_to_order"
+      payment_phase: "deposit" | "balance"
       payment_status:
         | "requires_payment_method"
         | "requires_action"
@@ -465,7 +672,12 @@ export type Database = {
         | "failed"
         | "refunded"
         | "partially_refunded"
-      payment_phase: "deposit" | "balance"
+      sample_status:
+        | "pending"
+        | "approved"
+        | "shipped"
+        | "delivered"
+        | "converted_to_order"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -603,6 +815,17 @@ export const Constants = {
         "shipped",
         "delivered",
         "cancelled",
+      ],
+      payment_phase: ["deposit", "balance"],
+      payment_status: [
+        "requires_payment_method",
+        "requires_action",
+        "processing",
+        "succeeded",
+        "canceled",
+        "failed",
+        "refunded",
+        "partially_refunded",
       ],
       sample_status: [
         "pending",

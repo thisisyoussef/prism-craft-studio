@@ -2,6 +2,16 @@ import { create } from 'zustand'
 import { supabase } from '@/integrations/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import { toast } from '@/hooks/use-toast'
+import { OrderService } from '@/lib/services/orderService';
+import type { 
+  Order, 
+  CreateOrderPayload, 
+  Payment, 
+  ProductionUpdate, 
+  OrderTimelineEvent,
+  OrderStatus,
+  CreateProductionUpdatePayload
+} from '@/lib/types/order';
 
 interface AuthState {
   user: User | null
@@ -169,189 +179,477 @@ export const useGuestStore = create<GuestState>((set, get) => ({
 
 // Order management store
 interface OrderState {
-  currentOrder: any
-  orders: any[]
-  samples: any[]
-  setCurrentOrder: (order: any) => void
-  addOrder: (order: any) => Promise<any>
-  addSampleOrder: (samples: any) => Promise<void>
+  currentOrder: Order | null
+  orders: Order[]
+  payments: Record<string, Payment[]>
+  productionUpdates: Record<string, ProductionUpdate[]>
+  timeline: Record<string, OrderTimelineEvent[]>
+  loading: {
+    orders: boolean
+    payments: boolean
+    production: boolean
+    timeline: boolean
+  }
+  error: {
+    orders: string | null
+    payments: string | null
+    production: string | null
+    timeline: string | null
+  }
+  samples: any[] // Legacy
+  
+  // Methods
+  setCurrentOrder: (order: Order | null) => void
+  addOrder: (orderData: CreateOrderPayload) => Promise<Order>
   fetchOrders: () => Promise<void>
+  fetchOrder: (orderId: string) => Promise<Order | null>
+  updateOrder: (orderId: string, updates: any) => Promise<Order>
+  updateOrderStatus: (orderId: string, status: OrderStatus, notes?: string) => Promise<Order>
+  
+  // Payment methods
+  fetchOrderPayments: (orderId: string) => Promise<Payment[]>
+  
+  // Production methods
+  fetchProductionUpdates: (orderId: string) => Promise<ProductionUpdate[]>
+  createProductionUpdate: (payload: CreateProductionUpdatePayload) => Promise<ProductionUpdate>
+  
+  // Timeline methods
+  fetchOrderTimeline: (orderId: string) => Promise<OrderTimelineEvent[]>
+  
+  // Real-time subscriptions
+  subscribeToOrder: (orderId: string) => any
+  subscribeToProductionUpdates: (orderId: string) => any
+  subscribeToPayments: (orderId: string) => any
+  
+  // Legacy methods
+  startCheckout: (orderId: string, phase: string) => Promise<void>
+  addSampleOrder: (samples: any) => Promise<any>
   fetchSamples: () => Promise<void>
-  startCheckout: (orderId: string, phase: 'deposit' | 'balance') => Promise<void>
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
   currentOrder: null,
   orders: [],
-  samples: [],
+  payments: {},
+  productionUpdates: {},
+  timeline: {},
+  loading: {
+    orders: false,
+    payments: false,
+    production: false,
+    timeline: false
+  },
+  error: {
+    orders: null,
+    payments: null,
+    production: null,
+    timeline: null
+  },
+  samples: [], // Legacy
 
   setCurrentOrder: (order) => set({ currentOrder: order }),
 
-  addOrder: async (order) => {
+  addOrder: async (orderData: CreateOrderPayload) => {
+    const { orders, loading, error } = get();
+    if (loading.orders) return;
+
+    set({ loading: { ...loading, orders: true }, error: { ...error, orders: null } });
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User must be authenticated')
-
-      const { data, error } = await supabase
-        .from('orders')
-        .insert([{
-          user_id: user.id,
-          // product_id expects a UUID; since our UI uses string keys (e.g., 't-shirt'), store it in customization_details and leave UUID null
-          product_id: null,
-          quantity: order.quantity,
-          colors: order.colors,
-          // sizes column is TEXT[] in DB; our UI uses a map. Store detailed sizes in customization_details and leave column null.
-          sizes: null,
-          customization_details: {
-            ...order.customizationDetails,
-            sizes: order.sizes,
-            product_type_key: order.productId
-          },
-          artwork_files: order.artworkFiles,
-          custom_text: order.customText,
-          placement: order.placement,
-          notes: order.notes,
-          total_amount: order.totalAmount,
-          status: 'draft'
-        }])
-        .select()
-        .single()
+      const newOrder = await OrderService.createOrder(orderData);
       
-      if (error) throw error
+      set(state => ({
+        orders: [newOrder, ...state.orders],
+        loading: { ...state.loading, orders: false }
+      }));
 
-      // Compute 40/60 split for payments (in cents)
-      const totalAmountCents = Math.round(((order.totalAmount as number) || 0) * 100)
-      const depositCents = Math.round(totalAmountCents * 0.4)
-      const balanceCents = Math.max(totalAmountCents - depositCents, 0)
+      toast({
+        title: "Order created successfully",
+        description: `Order ${newOrder.order_number} has been created.`
+      });
 
-      // Persist split amounts on order (best-effort)
-      const _updateOrder = await (supabase as any)
-        .from('orders')
-        .update({
-          deposit_amount_cents: depositCents,
-          balance_amount_cents: balanceCents,
-        })
-        .eq('id', (data as any).id)
-
-      // Initialize payments rows (best-effort; ignore errors but log)
-      const _initPayments = await (supabase as any)
-        .from('payments')
-        .upsert([
-          { order_id: (data as any).id, phase: 'deposit', amount_cents: depositCents, status: 'requires_payment_method' },
-          { order_id: (data as any).id, phase: 'balance', amount_cents: balanceCents, status: 'requires_payment_method' },
-        ], { onConflict: 'order_id,phase' })
-
-      if (_initPayments.error) {
-        console.warn('Failed to initialize payments rows', _initPayments.error)
-      }
-
-      set((state) => ({
-        orders: [...state.orders, data],
-        currentOrder: data
-      }))
+      return newOrder;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create order';
+      set({ 
+        loading: { ...loading, orders: false }, 
+        error: { ...error, orders: errorMessage } 
+      });
       
-      toast({ 
-        title: "Order created!", 
-        description: `Order ${data.order_number} has been created successfully.` 
-      })
-      return data
-    } catch (error) {
-      toast({ 
-        title: "Error", 
-        description: "Failed to create order. Please try again.",
+      toast({
+        title: "Error creating order",
+        description: errorMessage,
         variant: "destructive"
-      })
-      throw error
-    }
-  },
-
-  addSampleOrder: async (sampleData) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User must be authenticated')
-
-      // Normalize incoming payload from UI
-      const productNames: string[] =
-        sampleData?.productNames
-        || (Array.isArray(sampleData?.products) ? sampleData.products.map((p: any) => p?.name).filter(Boolean) : [])
-        || []
-
-      const shippingAddress = sampleData?.shippingAddress ?? sampleData?.shipping_address ?? null
-
-      const totalAmount =
-        (typeof sampleData?.totalAmount === 'number' ? sampleData.totalAmount : undefined)
-        ?? (typeof sampleData?.total_price === 'number' ? sampleData.total_price : undefined)
-        ?? (Array.isArray(sampleData?.products)
-              ? sampleData.products.reduce((sum: number, p: any) => sum + (Number(p?.price) || 0), 0)
-              : 0)
-
-      const { data, error } = await supabase
-        .from('samples')
-        .insert([{
-          user_id: user.id,
-          product_names: productNames,
-          shipping_address: shippingAddress,
-          total_amount: totalAmount,
-          status: 'pending'
-        }])
-        .select()
-        .single()
+      });
       
-      if (error) throw error
-      
-      set((state) => ({
-        samples: [...state.samples, data]
-      }))
-      
-      toast({ 
-        title: "Sample order placed!", 
-        description: `Your sample order has been placed successfully.` 
-      })
-    } catch (error) {
-      toast({ 
-        title: "Error", 
-        description: "Failed to place sample order. Please try again.",
-        variant: "destructive"
-      })
-      throw error
+      throw err;
     }
   },
 
   fetchOrders: async () => {
+    const { loading, error } = get();
+    if (loading.orders) return;
+
+    set({ loading: { ...loading, orders: true }, error: { ...error, orders: null } });
+
     try {
-      const { data: auth } = await supabase.auth.getUser()
-      const uid = auth?.user?.id
-      const query = supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-      const { data, error } = uid
-        ? await query.eq('user_id', uid)
-        : await query
+      const orders = await OrderService.getUserOrders();
+      set({ 
+        orders, 
+        loading: { ...loading, orders: false } 
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch orders';
+      set({ 
+        loading: { ...loading, orders: false }, 
+        error: { ...error, orders: errorMessage } 
+      });
       
-      if (error) throw error
-      set({ orders: data || [] })
-    } catch (error) {
-      console.error('Error fetching orders:', error)
+      toast({
+        title: "Error fetching orders",
+        description: errorMessage,
+        variant: "destructive"
+      });
     }
+  },
+
+  fetchOrder: async (orderId: string) => {
+    const { loading, error } = get();
+    if (loading.orders) return null;
+
+    set({ loading: { ...loading, orders: true }, error: { ...error, orders: null } });
+
+    try {
+      const order = await OrderService.getOrder(orderId);
+      set({ loading: { ...loading, orders: false } });
+      return order;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch order';
+      set({ 
+        loading: { ...loading, orders: false }, 
+        error: { ...error, orders: errorMessage } 
+      });
+      
+      toast({
+        title: "Error fetching order",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return null;
+    }
+  },
+
+  updateOrder: async (orderId: string, updates: any) => {
+    const { orders, loading, error } = get();
+    if (loading.orders) return;
+
+    set({ loading: { ...loading, orders: true }, error: { ...error, orders: null } });
+
+    try {
+      const updatedOrder = await OrderService.updateOrder(orderId, updates);
+      
+      set(state => ({
+        orders: state.orders.map(order => 
+          order.id === orderId ? updatedOrder : order
+        ),
+        loading: { ...state.loading, orders: false }
+      }));
+
+      toast({
+        title: "Order updated successfully",
+        description: `Order ${updatedOrder.order_number} has been updated.`
+      });
+
+      return updatedOrder;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update order';
+      set({ 
+        loading: { ...loading, orders: false }, 
+        error: { ...error, orders: errorMessage } 
+      });
+      
+      toast({
+        title: "Error updating order",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      throw err;
+    }
+  },
+
+  updateOrderStatus: async (orderId: string, status: OrderStatus, adminNotes?: string) => {
+    const { orders, loading, error } = get();
+    if (loading.orders) return;
+
+    set({ loading: { ...loading, orders: true }, error: { ...error, orders: null } });
+
+    try {
+      const updatedOrder = await OrderService.updateOrderStatus(orderId, status, adminNotes);
+      
+      set(state => ({
+        orders: state.orders.map(order => 
+          order.id === orderId ? updatedOrder : order
+        ),
+        loading: { ...state.loading, orders: false }
+      }));
+
+      toast({
+        title: "Order status updated",
+        description: `Order ${updatedOrder.order_number} status changed to ${status}.`
+      });
+
+      return updatedOrder;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update order status';
+      set({ 
+        loading: { ...loading, orders: false }, 
+        error: { ...error, orders: errorMessage } 
+      });
+      
+      toast({
+        title: "Error updating order status",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      throw err;
+    }
+  },
+
+  fetchOrderPayments: async (orderId: string) => {
+    const { loading, error } = get();
+
+    set({ loading: { ...loading, payments: true }, error: { ...error, payments: null } });
+
+    try {
+      const payments = await OrderService.getOrderPayments(orderId);
+      set(state => ({ 
+        payments: { ...state.payments, [orderId]: payments },
+        loading: { ...state.loading, payments: false } 
+      }));
+      return payments;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch payments';
+      set({ 
+        loading: { ...loading, payments: false }, 
+        error: { ...error, payments: errorMessage } 
+      });
+      
+      toast({
+        title: "Error fetching payments",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return [];
+    }
+  },
+
+  fetchProductionUpdates: async (orderId: string) => {
+    const { loading, error } = get();
+
+    set({ loading: { ...loading, production: true }, error: { ...error, production: null } });
+
+    try {
+      const updates = await OrderService.getOrderProductionUpdates(orderId);
+      set(state => ({ 
+        productionUpdates: { ...state.productionUpdates, [orderId]: updates },
+        loading: { ...state.loading, production: false } 
+      }));
+      return updates;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch production updates';
+      set({ 
+        loading: { ...loading, production: false }, 
+        error: { ...error, production: errorMessage } 
+      });
+      
+      toast({
+        title: "Error fetching production updates",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return [];
+    }
+  },
+
+  createProductionUpdate: async (payload: CreateProductionUpdatePayload) => {
+    const { loading, error } = get();
+
+    set({ loading: { ...loading, production: true }, error: { ...error, production: null } });
+
+    try {
+      const update = await OrderService.createProductionUpdate(payload);
+      
+      set(state => {
+        const existingUpdates = state.productionUpdates[payload.order_id] || [];
+        return {
+          productionUpdates: { 
+            ...state.productionUpdates, 
+            [payload.order_id]: [update, ...existingUpdates] 
+          },
+          loading: { ...state.loading, production: false }
+        };
+      });
+
+      toast({
+        title: "Production update created",
+        description: `${update.title} has been added.`
+      });
+
+      return update;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create production update';
+      set({ 
+        loading: { ...loading, production: false }, 
+        error: { ...error, production: errorMessage } 
+      });
+      
+      toast({
+        title: "Error creating production update",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      throw err;
+    }
+  },
+
+  fetchOrderTimeline: async (orderId: string) => {
+    const { loading, error } = get();
+
+    set({ loading: { ...loading, timeline: true }, error: { ...error, timeline: null } });
+
+    try {
+      const timeline = await OrderService.getOrderTimeline(orderId);
+      set(state => ({ 
+        timeline: { ...state.timeline, [orderId]: timeline },
+        loading: { ...state.loading, timeline: false } 
+      }));
+      return timeline;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch order timeline';
+      set({ 
+        loading: { ...loading, timeline: false }, 
+        error: { ...error, timeline: errorMessage } 
+      });
+      
+      toast({
+        title: "Error fetching timeline",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return [];
+    }
+  },
+
+  subscribeToOrder: (orderId: string) => {
+    return OrderService.subscribeToOrder(orderId, (order) => {
+      set(state => ({
+        orders: state.orders.map(o => o.id === orderId ? order : o)
+      }));
+    });
+  },
+
+  subscribeToProductionUpdates: (orderId: string) => {
+    return OrderService.subscribeToProductionUpdates(orderId, (update) => {
+      set(state => {
+        const existingUpdates = state.productionUpdates[orderId] || [];
+        const updatedList = existingUpdates.find(u => u.id === update.id)
+          ? existingUpdates.map(u => u.id === update.id ? update : u)
+          : [update, ...existingUpdates];
+        
+        return {
+          productionUpdates: { 
+            ...state.productionUpdates, 
+            [orderId]: updatedList 
+          }
+        };
+      });
+    });
+  },
+
+  subscribeToPayments: (orderId: string) => {
+    return OrderService.subscribeToPayments(orderId, (payment) => {
+      set(state => {
+        const existingPayments = state.payments[orderId] || [];
+        const updatedList = existingPayments.find(p => p.id === payment.id)
+          ? existingPayments.map(p => p.id === payment.id ? payment : p)
+          : [payment, ...existingPayments];
+        
+        return {
+          payments: { 
+            ...state.payments, 
+            [orderId]: updatedList 
+          }
+        };
+      });
+    });
   },
 
   fetchSamples: async () => {
     try {
-      const { data: auth } = await supabase.auth.getUser()
-      const uid = auth?.user?.id
-      const query = supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        set({ samples: [] });
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('samples')
         .select('*')
-        .order('created_at', { ascending: false })
-      const { data, error } = uid
-        ? await query.eq('user_id', uid)
-        : await query
-      
-      if (error) throw error
-      set({ samples: data || [] })
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      set({ samples: data || [] });
     } catch (error) {
-      console.error('Error fetching samples:', error)
+      console.error('Error fetching samples:', error);
+      set({ samples: [] });
+    }
+  },
+
+  addSampleOrder: async (samples: any) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('samples')
+        .insert({
+          user_id: user.id,
+          items: samples,
+          status: 'pending',
+          total_amount: 0
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      set(state => ({
+        samples: [data, ...state.samples]
+      }));
+
+      toast({
+        title: "Sample order created",
+        description: "Your sample order has been submitted successfully."
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error creating sample order:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create sample order. Please try again.",
+        variant: "destructive"
+      });
+      throw error;
     }
   },
 
@@ -539,13 +837,31 @@ export const usePricingStore = create<PricingState>((set, get) => ({
       return null
     }
     const id = crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+    
+    // Default sizes based on location
+    const getDefaultSize = (location: PrintLocation) => {
+      switch (location) {
+        case 'front':
+        case 'back':
+          return { widthIn: 8, heightIn: 10 }
+        case 'left_sleeve':
+        case 'right_sleeve':
+          return { widthIn: 4, heightIn: 5 }
+        case 'collar':
+        case 'tag':
+          return { widthIn: 2, heightIn: 2 }
+        default:
+          return { widthIn: 6, heightIn: 8 }
+      }
+    }
+    
     const defaults: PrintPlacement = {
       id,
       location: print.location,
       method: print.method,
       colors: [],
       colorCount: 1,
-      size: defaultSizeForLocation(print.location),
+      size: getDefaultSize(print.location),
       position: { x: 0, y: 0 },
       rotationDeg: 0,
       artworkFiles: [],
@@ -604,83 +920,87 @@ export const usePricingStore = create<PricingState>((set, get) => ({
   },
 
   calculatePrice: () => {
-    const { quantity, productType, prints } = get()
+    try {
+      const { quantity, productType, prints } = get()
 
-    const productPrices = {
-      't-shirt': 12.99,
-      'hoodie': 24.99,
-      'polo': 18.99,
-      'sweatshirt': 22.99
-    }
-
-    // Simple per-print surcharge model (per piece)
-    const methodBase: Record<PrintMethod, number> = {
-      'screen-print': 0.2, // per color below
-      'embroidery': 0.5,
-      'vinyl': 0.3,
-      'dtg': 0.4,
-      'dtf': 0.35,
-      'heat_transfer': 0.25,
-    }
-
-    const locationMultiplier: Record<PrintLocation, number> = {
-      front: 1,
-      back: 1,
-      left_sleeve: 0.6,
-      right_sleeve: 0.6,
-      collar: 0.5,
-      tag: 0.5,
-    }
-
-    const basePrice = productPrices[productType as keyof typeof productPrices] || 12.99
-
-    // Compute prints surcharge per piece
-    const printsSurchargeUnit = (prints || []).reduce((sum, p) => {
-      if (!p.active) return sum
-      const locMul = locationMultiplier[p.location] ?? 1
-      let add = 0
-      if (p.method === 'screen-print') {
-        add = methodBase['screen-print'] * Math.max(1, p.colorCount || 1)
-      } else {
-        add = methodBase[p.method as PrintMethod] ?? 0
+      const productPrices = {
+        't-shirt': 12.99,
+        'hoodie': 24.99,
+        'polo': 18.99,
+        'sweatshirt': 22.99
       }
-      return sum + add * locMul
-    }, 0)
 
-    const quantityTiers = [
-      { min: 50, max: 99, discount: 0 },
-      { min: 100, max: 249, discount: 0.05 },
-      { min: 250, max: 499, discount: 0.10 },
-      { min: 500, max: 999, discount: 0.15 },
-      { min: 1000, max: Infinity, discount: 0.20 }
-    ]
-
-    const tier = quantityTiers.find(t => quantity >= t.min && quantity <= t.max)
-    const discount = tier?.discount || 0
-
-    const baseUnit = basePrice
-    const unitPrice = (baseUnit + printsSurchargeUnit) * (1 - discount)
-    const totalPrice = unitPrice * quantity
-    const originalPrice = (baseUnit + printsSurchargeUnit) * quantity
-    const currentSavings = originalPrice - totalPrice
-
-    set({ 
-      price: totalPrice, 
-      savings: currentSavings,
-      priceBreakdown: {
-        baseUnit,
-        printsSurchargeUnit,
-        discountRate: discount,
-        unitPrice,
-        totalPrice,
+      // Simple per-print surcharge model (per piece)
+      const methodBase: Record<PrintMethod, number> = {
+        'screen-print': 0.2, // per color below
+        'embroidery': 0.5,
+        'vinyl': 0.3,
+        'dtg': 0.4,
+        'dtf': 0.35,
+        'heat_transfer': 0.25,
       }
-    })
+
+      const locationMultiplier: Record<PrintLocation, number> = {
+        front: 1,
+        back: 1,
+        left_sleeve: 0.6,
+        right_sleeve: 0.6,
+        collar: 0.5,
+        tag: 0.5,
+      }
+
+      const basePrice = productPrices[productType as keyof typeof productPrices] || 12.99
+
+      // Compute prints surcharge per piece
+      const printsSurchargeUnit = (prints || []).reduce((sum, p) => {
+        if (!p.active) return sum
+        const locMul = locationMultiplier[p.location] ?? 1
+        let add = 0
+        if (p.method === 'screen-print') {
+          add = methodBase['screen-print'] * Math.max(1, p.colorCount || 1)
+        } else {
+          add = methodBase[p.method as PrintMethod] ?? 0
+        }
+        return sum + add * locMul
+      }, 0)
+
+      const quantityTiers = [
+        { min: 50, max: 99, discount: 0 },
+        { min: 100, max: 249, discount: 0.05 },
+        { min: 250, max: 499, discount: 0.10 },
+        { min: 500, max: 999, discount: 0.15 },
+        { min: 1000, max: Infinity, discount: 0.20 }
+      ]
+
+      const tier = quantityTiers.find(t => quantity >= t.min && quantity <= t.max)
+      const discount = tier?.discount || 0
+
+      const baseUnit = basePrice
+      const unitPrice = (baseUnit + printsSurchargeUnit) * (1 - discount)
+      const totalPrice = unitPrice * quantity
+      const originalPrice = (baseUnit + printsSurchargeUnit) * quantity
+      const currentSavings = originalPrice - totalPrice
+
+      set({ 
+        price: totalPrice, 
+        savings: currentSavings,
+        priceBreakdown: {
+          baseUnit,
+          printsSurchargeUnit,
+          discountRate: discount,
+        }
+      })
+    } catch (error) {
+      console.error('Checkout error:', error)
+      throw error
+    }
   },
+
 }))
 
-// helpers
-function defaultSizeForLocation(loc: PrintLocation): { widthIn: number; heightIn: number } {
-  switch (loc) {
+// Helper function to get default print size based on location
+export function getDefaultPrintSize(location: string) {
+  switch (location) {
     case 'front':
     case 'back':
       return { widthIn: 10, heightIn: 12 }

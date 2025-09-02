@@ -554,7 +554,7 @@ export default function AiMockupEditor() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Color</Label>
-            <Select value={selectedVariantId ?? ''} onValueChange={(v) => setSelectedVariantId(v)}>
+            <Select value={selectedVariantId || ''} onValueChange={(v) => setSelectedVariantId(v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a color" />
               </SelectTrigger>

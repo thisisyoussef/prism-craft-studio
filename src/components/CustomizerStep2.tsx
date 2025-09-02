@@ -21,10 +21,9 @@ import { useNavigate } from 'react-router-dom'
 interface CustomizerStep2Props {
   onBack: () => void
   selectedProduct: string
-  selectedColors: string[]
 }
 
-const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: CustomizerStep2Props) => {
+const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
   const navigate = useNavigate()
   const [sizesQty, setSizesQty] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState('')
@@ -77,12 +76,18 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
     mode: 'onChange',
     defaultValues: {
       productId: selectedProduct,
-      selectedColors,
       sizesQty,
       prints,
     },
   })
   const { setValue, formState } = form
+
+  // Update form when selectedProduct changes
+  useEffect(() => {
+    if (selectedProduct) {
+      setValue('productId', selectedProduct, { shouldValidate: true })
+    }
+  }, [selectedProduct, setValue])
 
   // Keep form in sync
   useEffect(() => {
@@ -92,11 +97,15 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
   const updateSizeQty = (size: string, qty: number) => {
     setSizesQty(prev => {
       const next = { ...prev, [size]: Math.max(0, qty) }
-      const total = Object.values(next).reduce((a, b) => a + (b || 0), 0)
-      updateQuantity(Math.max(25, total))
       return next
     })
   }
+
+  // Update total quantity when sizesQty changes
+  useEffect(() => {
+    const total = Object.values(sizesQty).reduce((a, b) => a + (b || 0), 0)
+    updateQuantity(Math.max(25, total))
+  }, [sizesQty, updateQuantity])
 
   const setTotalQuantity = (newTotal: number) => {
     const total = Math.max(25, Math.floor(newTotal || 0))
@@ -143,39 +152,90 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
     try {
       // Validate
       setValue('productId', selectedProduct)
-      setValue('selectedColors', selectedColors)
       setValue('sizesQty', sizesQty)
       setValue('prints', prints)
       const valid = await form.trigger()
       
       if (!valid) {
         const errs = formState.errors
-        const messages = [errs.productId?.message, errs.selectedColors?.message, errs.sizesQty?.message, errs.prints?.message].filter(Boolean) as string[]
-        toast.error(messages.join('\n'))
+        console.log('Validation errors:', errs)
+        
+        // Build specific error messages
+        const errorMessages: string[] = []
+        
+        if (errs.productId?.message) {
+          errorMessages.push(`Product: ${errs.productId.message}`)
+        }
+        
+        if (errs.sizesQty?.message) {
+          errorMessages.push(`Quantities: ${errs.sizesQty.message}`)
+        }
+        
+        if (errs.prints?.message) {
+          errorMessages.push(`Print locations: ${errs.prints.message}`)
+        }
+        
+        // Check for specific validation issues
+        const totalQty = Object.values(sizesQty).reduce((sum, qty) => sum + (qty || 0), 0)
+        if (totalQty < 50) {
+          errorMessages.push(`Minimum order is 50 pieces (current: ${totalQty})`)
+        }
+        
+        if (prints.length === 0) {
+          errorMessages.push('Add at least one print placement')
+        }
+        
+        if (!selectedProduct) {
+          errorMessages.push('Select a product')
+        }
+        
+        const message = errorMessages.length > 0 
+          ? errorMessages.join('\n') 
+          : 'Please check your order details and try again'
+          
+        toast.error(message)
         return
       }
 
       const orderPayload = {
-        productId: selectedProduct,
+        product_id: selectedProduct,
+        product_name: productInfo?.name || 'Product',
+        product_category: 'apparel',
         quantity: totalQuantity,
-        colors: selectedColors,
-        sizes: sizesQty,
-        customizationDetails: {
-          prints: prints.map(p => ({
+        unit_price: unitPrice,
+        total_amount: price,
+        customization: {
+          baseColor: 'default',
+          printLocations: prints.map(p => ({
             id: p.id,
-            location: p.location,
-            method: p.method,
-            colors: p.colors,
-            colorCount: p.colorCount,
+            location: p.location as any,
+            method: p.method as any,
+            colors: p.colors || [],
+            colorCount: p.colorCount || 1,
             size: p.size,
             position: p.position,
             rotationDeg: p.rotationDeg,
             customText: p.customText,
             notes: p.notes,
           })),
+          method: prints[0]?.method || 'screen-print',
+          specialInstructions: notes,
         },
-        notes,
-        totalAmount: price,
+        colors: [],
+        sizes: sizesQty,
+        print_locations: prints.map(p => ({
+          id: p.id,
+          location: p.location as any,
+          method: p.method as any,
+          colors: p.colors || [],
+          colorCount: p.colorCount || 1,
+          size: p.size,
+          position: p.position,
+          rotationDeg: p.rotationDeg,
+          customText: p.customText,
+          notes: p.notes,
+        })),
+        customer_notes: notes,
       }
 
       const created = await addOrder(orderPayload)
@@ -185,6 +245,7 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
         navigate(`/orders/${created.id}`)
       }
     } catch (error: unknown) {
+      console.error('Order creation error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create order'
       toast.error(message)
     } finally {
@@ -195,7 +256,6 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
   const handleGuestOrder = async () => {
     const validation = customizerSchema.safeParse({
       productId: selectedProduct,
-      selectedColors,
       sizesQty,
       prints,
     })
@@ -212,7 +272,6 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
         address: address || {},
         draft: {
           product_type: selectedProduct,
-          colors: selectedColors,
           sizes: sizesQty,
           customization_prints: prints.map(p => ({
             id: p.id,
@@ -250,8 +309,8 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
   }
 
   const isFormValid = useMemo(() => {
-    return totalQuantity >= 25 && selectedColors.length > 0 && prints.length > 0
-  }, [totalQuantity, selectedColors, prints])
+    return totalQuantity >= 25 && prints.length > 0
+  }, [totalQuantity, prints])
 
   return (
     <div className="space-y-6">
@@ -272,14 +331,6 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
               <div className="flex justify-between">
                 <span>Product:</span>
                 <span className="font-medium">{productInfo?.name || 'Loading...'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Print colors:</span>
-                <div className="flex gap-1">
-                  {selectedColors.map(color => (
-                    <Badge key={color} variant="secondary" className="text-xs">{color}</Badge>
-                  ))}
-                </div>
               </div>
               <div className="flex justify-between">
                 <span>Print locations:</span>
@@ -422,12 +473,6 @@ const CustomizerStep2 = ({ onBack, selectedProduct, selectedColors }: Customizer
                   <span>Print setup:</span>
                   <span>Included</span>
                 </div>
-                {selectedColors.length > 1 && (
-                  <div className="flex justify-between">
-                    <span>Additional colors:</span>
-                    <span>Included</span>
-                  </div>
-                )}
               </div>
               
               <div className="border-t pt-4">

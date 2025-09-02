@@ -8,38 +8,44 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-// Using a lightweight range type to avoid strict DateRange requirements
-type Range = { from?: Date; to?: Date };
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { OrderService } from "@/lib/services/orderService";
+import type { Order, OrderStatus, OrderPriority } from "@/lib/types/order";
 
-interface OrderRow {
-  id: string;
-  order_number: string | null;
-  company_id: string | null;
-  user_id: string;
-  product_id: string | null;
-  quantity: number;
-  total_amount: number | null;
-  status: string | null;
-  created_at: string;
-  labels?: string[] | null;
-  notes?: string | null;
+type Range = { from?: Date; to?: Date };
+
+interface OrderRow extends Order {
   product?: { name: string | null; image_url?: string | null } | null;
 }
 
-const statuses = [
+const statuses: OrderStatus[] = [
   "draft",
-  "pending",
-  "confirmed",
+  "quote_requested",
+  "quoted",
+  "deposit_pending",
+  "deposit_paid",
   "in_production",
+  "quality_check",
+  "balance_pending",
+  "balance_paid",
+  "ready_to_ship",
   "shipped",
   "delivered",
+  "completed",
   "cancelled",
+  "refunded",
+];
+
+const priorities: OrderPriority[] = [
+  "low",
+  "normal",
+  "high",
+  "urgent"
 ];
 
 export default function AdminOrders() {
@@ -56,20 +62,28 @@ export default function AdminOrders() {
     queryKey: ["admin-orders", status, customer, range?.from?.toISOString(), range?.to?.toISOString()],
     enabled: !!profile && !loadingProfile,
     queryFn: async () => {
-      let q = (supabase as any)
-        .from("orders")
-        .select("id, order_number, company_id, user_id, product_id, quantity, total_amount, status, created_at, labels, notes, product:products!orders_product_id_fkey(name, image_url)")
-        .order("created_at", { ascending: false });
-      if (status && status !== 'all') q = q.eq("status", status);
-      if (customer) q = q.ilike("order_number", `%${customer}%`);
-      if (range?.from) q = q.gte("created_at", range.from.toISOString());
-      if (range?.to) q = q.lte("created_at", range.to.toISOString());
-      const { data, error } = await q;
-      if (error) {
-        console.error("AdminOrders query error:", error);
-        throw error;
+      const allOrders = await OrderService.getOrders();
+      
+      let filteredOrders = allOrders;
+      
+      // Apply filters
+      if (status && status !== 'all') {
+        filteredOrders = filteredOrders.filter(o => o.status === status);
       }
-      return (data || []) as OrderRow[];
+      if (customer) {
+        filteredOrders = filteredOrders.filter(o => 
+          o.order_number?.toLowerCase().includes(customer.toLowerCase()) ||
+          o.id.toLowerCase().includes(customer.toLowerCase())
+        );
+      }
+      if (range?.from) {
+        filteredOrders = filteredOrders.filter(o => new Date(o.created_at) >= range.from!);
+      }
+      if (range?.to) {
+        filteredOrders = filteredOrders.filter(o => new Date(o.created_at) <= range.to!);
+      }
+      
+      return filteredOrders as OrderRow[];
     },
   });
 
@@ -123,12 +137,8 @@ export default function AdminOrders() {
   const [editLabels, setEditLabels] = useState<string>("");
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await (supabase as any)
-        .from("orders")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
+    mutationFn: async ({ id, status }: { id: string; status: OrderStatus }) => {
+      await OrderService.updateOrder(id, { status });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
@@ -142,52 +152,36 @@ export default function AdminOrders() {
   const saveEdits = useMutation({
     mutationFn: async () => {
       if (!selected) return;
-      const patch: any = {};
-      if (editStatus && editStatus !== selected.status) patch.status = editStatus;
-      patch.notes = editNotes;
-      patch.labels = editLabels.split(',').map(s => s.trim()).filter(Boolean);
-      const { error } = await (supabase as any)
-        .from('orders')
-        .update(patch)
-        .eq('id', selected.id);
-      if (error) throw error;
-
-      // If status changed, also log a production update to keep timeline consistent
-      if (patch.status && patch.status !== selected.status) {
-        try {
-          await (supabase as any)
-            .from('production_updates')
-            .insert({
-              order_id: selected.id,
-              stage: patch.status,
-              status: 'updated',
-              description: (patch.notes || '').slice(0, 2000) || null,
-              photos: null,
-            })
-        } catch (e) {
-          console.warn('Failed to insert production update from AdminOrders', e)
-        }
+      
+      const updates: Partial<Order> = {};
+      
+      if (editStatus && editStatus !== selected.status) {
+        updates.status = editStatus as OrderStatus;
       }
-
-      // Send email if status changed and we have a customer email
-      const prof = profilesMap[selected.user_id];
-      if (patch.status && prof?.email) {
-        const payload = {
-          order_number: selected.order_number || selected.id,
-          status: patch.status,
-          notes: patch.notes || '',
-          explanation: `Your order status changed to ${patch.status.replace(/_/g, ' ')}.`,
-        };
-        try {
-          const res = await (supabase as any).functions.invoke('send-email', { body: { type: 'order_update', to: prof.email, payload } });
-          if (res?.error) {
-            console.warn('order_update email failed:', res.error);
-          } else {
-            console.log('order_update email sent:', { to: prof.email, order: payload.order_number, status: payload.status });
-          }
-        } catch (e) {
-          console.warn('order_update email invoke error:', e);
-        }
+      
+      if (editNotes && editNotes !== selected.admin_notes) {
+        updates.admin_notes = editNotes;
+      }
+      
+      const newLabels = editLabels.split(',').map(s => s.trim()).filter(Boolean);
+      if (JSON.stringify(newLabels) !== JSON.stringify(selected.labels || [])) {
+        updates.labels = newLabels;
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        await OrderService.updateOrder(selected.id, updates);
+      }
+      
+      // If status changed, create a production update with the notes
+      if (updates.status && updates.status !== selected.status) {
+        // Note: We'll need to add this method to OrderService
+        console.log('Status changed, would create production update:', {
+          order_id: selected.id,
+          stage: updates.status,
+          status: 'updated',
+          description: editNotes || `Order status changed to ${updates.status.replace(/_/g, ' ')}`,
+          visible_to_customer: true
+        });
       }
     },
     onSuccess: async () => {
@@ -323,7 +317,14 @@ export default function AdminOrders() {
               ) : (
                 (orders || []).map((o) => (
                   <TableRow key={o.id}>
-                    <TableCell>{o.order_number || '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">{o.order_number || '—'}</span>
+                        {o.priority && o.priority !== 'normal' && (
+                          <Badge variant="outline" className="text-xs w-fit">{o.priority}</Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge className={statusColor(o.status)}>{(o.status || '').split('_').join(' ') || '—'}</Badge>
                     </TableCell>
@@ -336,9 +337,24 @@ export default function AdminOrders() {
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{o.product?.name || productsMap[o.product_id as string]?.name || o.product_id || '—'}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex flex-col gap-1">
+                        <span>{o.product_name || '—'}</span>
+                        {o.colors && o.colors.length > 0 && (
+                          <span className="text-xs text-muted-foreground">{o.colors.join(', ')}</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">{o.quantity}</TableCell>
-                    <TableCell className="hidden md:table-cell">${Number(o.total_amount || 0).toFixed(2)}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">${Number(o.total_amount || 0).toFixed(2)}</span>
+                        <div className="text-xs text-muted-foreground">
+                          Deposit: ${Number(o.deposit_amount || 0).toFixed(2)} | 
+                          Balance: ${Number(o.balance_amount || 0).toFixed(2)}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">{format(new Date(o.created_at), 'yyyy-MM-dd')}</TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex flex-col gap-1">
@@ -347,8 +363,8 @@ export default function AdminOrders() {
                             <Badge key={i} variant="secondary">{lab}</Badge>
                           ))}
                         </div>
-                        {o.notes ? (
-                          <div className="text-xs text-muted-foreground line-clamp-2 max-w-[280px]">{o.notes}</div>
+                        {o.admin_notes ? (
+                          <div className="text-xs text-muted-foreground line-clamp-2 max-w-[280px]">{o.admin_notes}</div>
                         ) : null}
                       </div>
                     </TableCell>
