@@ -27,6 +27,17 @@
   </head>
 
   <body>
+    <script>
+      (function() {
+        try {
+          var storageKey = 'ptrn-theme';
+          var stored = localStorage.getItem(storageKey);
+          var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var shouldDark = stored === 'dark' || (!stored || stored === 'system') && systemDark;
+          if (shouldDark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

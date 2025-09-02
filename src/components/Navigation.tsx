@@ -5,6 +5,7 @@ import AuthDialog from "./AuthDialog";
 import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDollarSign, FlaskConical, BookOpen } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useProfile } from "@/lib/profile";
+import ModeToggle from "@/components/ModeToggle";
 
 const Navigation = () => {
   const { user, signOut, initialize } = useAuthStore();
@@ -80,6 +81,7 @@ const Navigation = () => {
         </div>
         
         <div className="flex items-center gap-2">
+          <ModeToggle />
           {user ? (
             <div className="flex items-center gap-3">
               <div className="hidden md:flex items-center gap-2 text-sm">
