@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { Order } from '../models/Order';
 import { Payment } from '../models/Payment';
+import { OrderTimeline } from '../models/OrderTimeline';
+import { ProductionUpdate } from '../models/ProductionUpdate';
 
 export const orderRouter = Router();
 
@@ -84,6 +86,86 @@ orderRouter.get('/:id/payments', requireAuth, async (req, res, next) => {
 		}))); 
 	} catch (err) { next(err); }
 });
+
+orderRouter.post('/:id/timeline', requireAuth, async (req, res, next) => {
+	try {
+		const { eventType, description, eventData, triggerSource } = req.body || {};
+		const ev = await OrderTimeline.create({
+			orderId: req.params.id,
+			eventType,
+			description,
+			eventData,
+			triggerSource: triggerSource || 'manual',
+		});
+		const e: any = ev as any;
+		res.status(201).json({
+			id: e._id.toString(),
+			orderId: e.orderId.toString(),
+			eventType: e.eventType,
+			description: e.description,
+			eventData: e.eventData,
+			triggerSource: e.triggerSource,
+			createdAt: e.createdAt,
+		});
+	} catch (err) { next(err); }
+});
+
+orderRouter.get('/:id/timeline', requireAuth, async (req, res, next) => {
+	try {
+		type TimelineLean = { _id: any; orderId: any; eventType: string; description: string; eventData?: any; triggerSource?: any; createdAt: Date };
+		const eventsRaw = await OrderTimeline.find({ orderId: req.params.id }).sort({ createdAt: -1 }).lean();
+		const events = (eventsRaw as unknown as TimelineLean[]).map((ev) => ({
+			id: ev._id.toString(),
+			orderId: ev.orderId.toString(),
+			eventType: ev.eventType,
+			description: ev.description,
+			eventData: ev.eventData,
+			triggerSource: ev.triggerSource,
+			createdAt: ev.createdAt,
+		}));
+		res.json(events);
+	} catch (err) { next(err); }
+});
+
+orderRouter.post('/:id/production-updates', requireAuth, async (req, res, next) => {
+	try {
+		const { stage, status, description, photos, documents } = req.body || {};
+		const update = await ProductionUpdate.create({
+			orderId: req.params.id,
+			stage,
+			status,
+			description,
+			photos,
+			documents,
+		});
+		res.status(201).json(serializeProductionUpdate(update));
+	} catch (err) { next(err); }
+});
+
+orderRouter.get('/:id/production-updates', requireAuth, async (req, res, next) => {
+	try {
+		const updates = await ProductionUpdate.find({ orderId: req.params.id }).sort({ createdAt: -1 }).lean();
+		res.json(updates.map(serializeProductionUpdate));
+	} catch (err) { next(err); }
+});
+
+function serializeProductionUpdate(pu: any) {
+	return {
+		id: pu._id.toString(),
+		orderId: pu.orderId.toString(),
+		stage: pu.stage,
+		status: pu.status,
+		description: pu.description,
+		photos: pu.photos || [],
+		documents: pu.documents || [],
+		estimatedCompletion: pu.estimatedCompletion,
+		actualCompletion: pu.actualCompletion,
+		createdBy: pu.createdBy,
+		visibleToCustomer: pu.visibleToCustomer ?? true,
+		createdAt: pu.createdAt,
+		updatedAt: pu.updatedAt,
+	};
+}
 
 function serializeOrder(o: any) {
 	return {
