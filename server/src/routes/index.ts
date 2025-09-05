@@ -7,6 +7,7 @@ import { bookingRouter } from './bookingRoutes';
 import { profileRouter } from './profileRoutes';
 import { companyRouter } from './companyRoutes';
 import { pricingRouter } from './pricingRoutes';
+import { fileRouter } from './fileRoutes';
 
 export function registerRoutes(app: Application) {
 	app.use('/api/products', productRouter);
@@ -17,4 +18,5 @@ export function registerRoutes(app: Application) {
 	app.use('/api/profile', profileRouter);
 	app.use('/api/company', companyRouter);
 	app.use('/api/pricing', pricingRouter);
+	app.use('/api/files', fileRouter);
 }

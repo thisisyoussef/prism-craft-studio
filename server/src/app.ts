@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { registerRoutes } from './routes';
+import path from 'path';
 
 export const app = express();
 
@@ -10,6 +11,8 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+// Serve uploaded files in dev
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.get('/health', (req: Request, res: Response) => {
 	res.status(200).json({ status: 'ok' });
