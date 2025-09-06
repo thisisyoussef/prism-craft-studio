@@ -1,11 +1,23 @@
 import { getAccessToken } from './authToken';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) || (typeof window !== 'undefined' ? window.location.origin : '');
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 function buildUrl(path: string, query?: Record<string, any>) {
-	const url = new URL(path.replace(/^\//, ''), API_BASE_URL.endsWith('/') ? API_BASE_URL : API_BASE_URL + '/');
+	// Allow absolute URLs to pass through unchanged
+	if (/^https?:\/\//i.test(path)) {
+		const abs = new URL(path);
+		if (query) Object.entries(query).forEach(([k, v]) => v != null && abs.searchParams.set(k, String(v)));
+		return abs.toString();
+	}
+	const base = (API_BASE_URL || '').endsWith('/') ? (API_BASE_URL || '') : (API_BASE_URL || '') + '/';
+	let url: URL;
+	try {
+		url = new URL(path.replace(/^\//, ''), base || (typeof window !== 'undefined' ? window.location.origin + '/' : ''));
+	} catch {
+		url = new URL(path.replace(/^\//, ''), (typeof window !== 'undefined' ? window.location.origin + '/' : ''));
+	}
 	if (query) {
 		Object.entries(query).forEach(([k, v]) => {
 			if (v === undefined || v === null) return;
