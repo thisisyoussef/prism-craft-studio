@@ -6,6 +6,11 @@ import type { IncomingMessage, ServerResponse } from "http";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  build: {
+    rollupOptions: {
+      external: ['socket.io-client']
+    }
+  },
   server: {
     host: "::",
     port: 8081,
