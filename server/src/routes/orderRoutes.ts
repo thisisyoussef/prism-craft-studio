@@ -4,6 +4,7 @@ import { Order } from '../models/Order';
 import { Payment } from '../models/Payment';
 import { OrderTimeline } from '../models/OrderTimeline';
 import { ProductionUpdate } from '../models/ProductionUpdate';
+import { emitToRoom } from '../services/realtimeService';
 
 export const orderRouter = Router();
 
@@ -62,7 +63,9 @@ orderRouter.patch('/:id', requireAuth, async (req, res, next) => {
 	try {
 		const order = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true }).lean();
 		if (!order) return res.status(404).json({ error: 'Not Found' });
-		res.json(serializeOrder(order));
+		const serialized = serializeOrder(order);
+		emitToRoom(`order:${serialized.id}`, 'order.updated', serialized);
+		res.json(serialized);
 	} catch (err) { next(err); }
 });
 
