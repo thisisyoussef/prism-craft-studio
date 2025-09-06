@@ -1,5 +1,6 @@
 // Order Service - Complete order management system
-import { supabase } from '../supabase';
+import { orderApi } from './orderApi';
+import { subscribe } from '../socket';
 import type { 
   Order, 
   OrderStatus, 
@@ -105,53 +106,8 @@ function transformTimelineRow(row: any): OrderTimelineEvent {
 }
 
 export class OrderService {
-  // Create a new order
   static async createOrder(orderData: CreateOrderPayload): Promise<Order> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User must be authenticated');
-
-    // Calculate deposit and balance amounts (40/60 split)
-    const depositAmount = Math.round(orderData.total_amount * 0.4 * 100) / 100;
-    const balanceAmount = orderData.total_amount - depositAmount;
-
-    // Create the order
-    const orderInsert: any = {
-      user_id: user.id,
-      product_id: orderData.product_id,
-      product_name: orderData.product_name,
-      product_category: orderData.product_category,
-      quantity: orderData.quantity,
-      unit_price: orderData.unit_price,
-      total_amount: orderData.total_amount,
-      deposit_amount: depositAmount,
-      balance_amount: balanceAmount,
-      customization: orderData.customization as any,
-      colors: orderData.colors,
-      sizes: orderData.sizes as any,
-      print_locations: orderData.print_locations as any,
-      artwork_files: orderData.artwork_files as any,
-      customer_notes: orderData.customer_notes,
-      shipping_address: orderData.shipping_address as any,
-      status: orderData.status || 'deposit_pending',
-      order_number: `ORD-${Date.now()}` // Temporary until trigger generates it
-    };
-
-    const { data, error } = await supabase
-      .from('orders')
-      .insert(orderInsert)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) throw new Error('Failed to create order');
-
-    // Initialize payment records
-    await this.initializePayment(data.id, depositAmount, balanceAmount);
-
-    // Timeline events are handled by database triggers
-    // No need to manually create timeline events
-
-    return transformOrderRow(data);
+    return orderApi.create(orderData);
   }
 
   // Initialize payment records for an order
@@ -182,18 +138,12 @@ export class OrderService {
 
   // Get order by ID
   static async getOrder(orderId: string): Promise<Order | null> {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
-      throw error;
+    try {
+      return await orderApi.get(orderId);
+    } catch (e: any) {
+      if (e.status === 404) return null;
+      throw e;
     }
-
-    return transformOrderRow(data);
   }
 
   // Get all orders (with optional filtering)
@@ -203,140 +153,42 @@ export class OrderService {
     limit?: number;
     offset?: number;
   }): Promise<Order[]> {
-    let query = supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (filters?.status) {
-      query = query.eq('status', filters.status);
-    }
-
-    if (filters?.userId) {
-      query = query.eq('user_id', filters.userId);
-    }
-
-    if (filters?.limit) {
-      query = query.limit(filters.limit);
-    }
-
-    if (filters?.offset) {
-      query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    return (data || []).map(transformOrderRow);
+    return orderApi.list(filters);
   }
 
   // Get orders for current user
   static async getUserOrders(): Promise<Order[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User must be authenticated');
-
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return (data || []).map(transformOrderRow);
+    return orderApi.list({ userId: 'me' });
   }
 
   // Update order
   static async updateOrder(orderId: string, updates: Partial<Order>): Promise<Order> {
-    // Transform Order type to database row format
-    const dbUpdates: any = { ...updates };
-    if (updates.customization) {
-      dbUpdates.customization = updates.customization as any;
-    }
-
-    const { data, error } = await supabase
-      .from('orders')
-      .update(dbUpdates)
-      .eq('id', orderId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) throw new Error('Failed to update order');
-
-    return transformOrderRow(data);
+    return orderApi.update(orderId, updates as UpdateOrderPayload);
   }
 
   // Get payments for an order
   static async getPayments(orderId: string): Promise<Payment[]> {
-    const { data, error } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return (data || []).map(transformPaymentRow);
+    return orderApi.payments(orderId);
   }
 
   // Create production update
   static async createProductionUpdate(update: CreateProductionUpdatePayload): Promise<ProductionUpdate> {
-    const { data, error } = await supabase
-      .from('production_updates')
-      .insert(update)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) throw new Error('Failed to create production update');
-
-    return data;
+    return orderApi.createProductionUpdate(update.order_id, update as any);
   }
 
   // Get production updates for an order
   static async getProductionUpdates(orderId: string): Promise<ProductionUpdate[]> {
-    const { data, error } = await supabase
-      .from('production_updates')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return (data || []).map(transformProductionUpdateRow);
+    return orderApi.productionUpdates(orderId);
   }
 
   // Get timeline events for an order
   static async getTimeline(orderId: string): Promise<OrderTimelineEvent[]> {
-    const { data, error } = await supabase
-      .from('order_timeline')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return (data || []).map(transformTimelineRow);
+    return orderApi.timeline(orderId);
   }
 
   // Subscribe to order updates
   static subscribeToOrderUpdates(orderId: string, callback: (order: any) => void) {
-    return supabase
-      .channel(`order_${orderId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${orderId}`,
-        },
-        (payload) => {
-          const order = transformOrderRow(payload.new);
-          callback(order);
-        }
-      )
-      .subscribe();
+    return subscribe(`order:${orderId}`, 'order.updated', callback);
   }
 
   // Update order status
@@ -400,33 +252,13 @@ export class OrderService {
 
   // Create timeline event
   static async createTimelineEvent(
-    orderId: string, 
-    eventType: string, 
-    description: string, 
+    orderId: string,
+    eventType: string,
+    description: string,
     eventData: Record<string, any> = {},
     triggerSource: 'manual' | 'system' | 'webhook' | 'api' = 'manual'
   ): Promise<OrderTimelineEvent> {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    const eventPayload: any = {
-      order_id: orderId,
-      event_type: eventType,
-      description,
-      event_data: eventData as any,
-      trigger_source: triggerSource,
-      triggered_by: user?.id
-    };
-
-    const { data, error } = await supabase
-      .from('order_timeline')
-      .insert(eventPayload)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) throw new Error('Failed to create timeline event');
-
-    return transformTimelineRow(data);
+    return orderApi.createTimeline(orderId, { eventType, description, eventData, triggerSource });
   }
 
   // Subscribe to real-time order updates (alias for subscribeToOrderUpdates)
