@@ -6,10 +6,9 @@ import type { IncomingMessage, ServerResponse } from "http";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  build: {
-    rollupOptions: {
-      external: ['socket.io-client', '@radix-ui/react-tooltip']
-    }
+  // Do NOT externalize browser deps; bundle them. Instead, pre-optimize.
+  optimizeDeps: {
+    include: ['@radix-ui/react-tooltip', 'socket.io-client']
   },
   server: {
     host: "::",
