@@ -10,6 +10,8 @@ export const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+// Raw body for Stripe webhook route
+app.use('/api/webhooks/stripe', express.raw({ type: '*/*' }));
 app.use(morgan('dev'));
 // Serve uploaded files in dev
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

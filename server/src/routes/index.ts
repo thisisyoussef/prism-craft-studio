@@ -8,6 +8,7 @@ import { profileRouter } from './profileRoutes';
 import { companyRouter } from './companyRoutes';
 import { pricingRouter } from './pricingRoutes';
 import { fileRouter } from './fileRoutes';
+import { stripeRoutes } from './stripeRoutes';
 
 export function registerRoutes(app: Application) {
 	app.use('/api/products', productRouter);
@@ -19,4 +20,5 @@ export function registerRoutes(app: Application) {
 	app.use('/api/company', companyRouter);
 	app.use('/api/pricing', pricingRouter);
 	app.use('/api/files', fileRouter);
+	app.use('/api', stripeRoutes);
 }
