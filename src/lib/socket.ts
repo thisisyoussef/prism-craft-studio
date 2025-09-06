@@ -1,6 +1,5 @@
 import { onAuthTokenChange, getAccessToken } from './authToken';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const io = require('socket.io-client');
+import { io } from 'socket.io-client';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL as string;
 
