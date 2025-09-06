@@ -8,7 +8,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
-      external: ['socket.io-client']
+      external: ['socket.io-client', '@radix-ui/react-tooltip']
     }
   },
   server: {
