@@ -29,7 +29,7 @@ export function useProfile() {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, user_id, company_id, first_name, last_name, email, phone, role, created_at, updated_at")
-        .eq("user_id", uid)
+        .eq("id", uid)
         .maybeSingle();
       if (error) throw error;
       return data as ProfileRow | null;
