@@ -105,9 +105,98 @@ function transformTimelineRow(row: any): OrderTimelineEvent {
   };
 }
 
+function mapOrder(api: any): Order {
+  return {
+    id: api.id,
+    order_number: api.orderNumber,
+    user_id: api.userId || '',
+    company_id: api.companyId,
+    product_id: api.productId,
+    product_name: api.productName,
+    product_category: api.productCategory,
+    quantity: api.quantity,
+    unit_price: api.unitPrice,
+    total_amount: api.totalAmount,
+    customization: (api.customization as any) || {},
+    colors: api.colors || [],
+    sizes: (api.sizes as any) || {},
+    print_locations: (api.printLocations as any) || [],
+    status: api.status,
+    priority: (api.priority as any) || 'normal',
+    labels: api.labels || [],
+    deposit_amount: api.depositAmount,
+    balance_amount: api.balanceAmount,
+    deposit_paid_at: api.depositPaidAt || undefined,
+    balance_paid_at: api.balancePaidAt || undefined,
+    shipping_address: (api.shippingAddress as any) || undefined,
+    tracking_number: api.trackingNumber || undefined,
+    estimated_delivery: api.estimatedDelivery || undefined,
+    actual_delivery: api.actualDelivery || undefined,
+    artwork_files: api.artworkFiles || [],
+    production_notes: api.productionNotes || undefined,
+    customer_notes: api.customerNotes || undefined,
+    admin_notes: api.adminNotes || undefined,
+    stripe_deposit_payment_intent: api.stripeDepositPaymentIntent || undefined,
+    stripe_balance_payment_intent: api.stripeBalancePaymentIntent || undefined,
+    created_at: api.createdAt,
+    updated_at: api.updatedAt,
+  };
+}
+
+function mapPayment(api: any): Payment {
+  return {
+    id: api.id,
+    order_id: (typeof api.orderId === 'string' ? api.orderId : api.orderId?.toString?.()) || '',
+    phase: api.phase,
+    amount_cents: api.amountCents,
+    currency: api.currency,
+    status: api.status,
+    stripe_payment_intent_id: api.stripePaymentIntentId || undefined,
+    stripe_checkout_session_id: api.stripeCheckoutSessionId || undefined,
+    stripe_charge_id: api.stripeChargeId || undefined,
+    created_at: api.createdAt,
+    updated_at: api.updatedAt,
+    paid_at: api.paidAt || undefined,
+    metadata: api.metadata || {},
+  };
+}
+
+function mapProductionUpdate(api: any): ProductionUpdate {
+  return {
+    id: api.id,
+    order_id: (typeof api.orderId === 'string' ? api.orderId : api.orderId?.toString?.()) || '',
+    stage: api.stage,
+    status: api.status,
+    title: api.title || `${api.stage} Update`,
+    description: api.description || undefined,
+    photos: api.photos || [],
+    documents: api.documents || [],
+    estimated_completion: api.estimatedCompletion || undefined,
+    actual_completion: api.actualCompletion || undefined,
+    created_by: api.createdBy || undefined,
+    visible_to_customer: api.visibleToCustomer ?? true,
+    created_at: api.createdAt,
+    updated_at: api.updatedAt,
+  };
+}
+
+function mapTimelineEvent(api: any): OrderTimelineEvent {
+  return {
+    id: api.id,
+    order_id: (typeof api.orderId === 'string' ? api.orderId : api.orderId?.toString?.()) || '',
+    event_type: api.eventType,
+    description: api.description,
+    event_data: api.eventData || {},
+    trigger_source: api.triggerSource || 'manual',
+    triggered_by: api.triggeredBy || undefined,
+    created_at: api.createdAt,
+  };
+}
+
 export class OrderService {
   static async createOrder(orderData: CreateOrderPayload): Promise<Order> {
-    return orderApi.create(orderData);
+    const api = await orderApi.create(orderData);
+    return mapOrder(api);
   }
 
   // Initialize payment records for an order
@@ -139,7 +228,8 @@ export class OrderService {
   // Get order by ID
   static async getOrder(orderId: string): Promise<Order | null> {
     try {
-      return await orderApi.get(orderId);
+      const api = await orderApi.get(orderId);
+      return mapOrder(api);
     } catch (e: any) {
       if (e.status === 404) return null;
       throw e;
@@ -153,42 +243,49 @@ export class OrderService {
     limit?: number;
     offset?: number;
   }): Promise<Order[]> {
-    return orderApi.list(filters);
+    const list = await orderApi.list(filters);
+    return list.map(mapOrder);
   }
 
   // Get orders for current user
   static async getUserOrders(): Promise<Order[]> {
-    return orderApi.list({ userId: 'me' });
+    const list = await orderApi.list({ userId: 'me' });
+    return list.map(mapOrder);
   }
 
   // Update order
   static async updateOrder(orderId: string, updates: Partial<Order>): Promise<Order> {
-    return orderApi.update(orderId, updates as UpdateOrderPayload);
+    const api = await orderApi.update(orderId, updates as UpdateOrderPayload);
+    return mapOrder(api);
   }
 
   // Get payments for an order
   static async getPayments(orderId: string): Promise<Payment[]> {
-    return orderApi.payments(orderId);
+    const list = await orderApi.payments(orderId);
+    return list.map(mapPayment);
   }
 
   // Create production update
   static async createProductionUpdate(update: CreateProductionUpdatePayload): Promise<ProductionUpdate> {
-    return orderApi.createProductionUpdate(update.order_id, update as any);
+    const api = await orderApi.createProductionUpdate(update.order_id, update as any);
+    return mapProductionUpdate(api);
   }
 
   // Get production updates for an order
   static async getProductionUpdates(orderId: string): Promise<ProductionUpdate[]> {
-    return orderApi.productionUpdates(orderId);
+    const list = await orderApi.productionUpdates(orderId);
+    return list.map(mapProductionUpdate);
   }
 
   // Get timeline events for an order
   static async getTimeline(orderId: string): Promise<OrderTimelineEvent[]> {
-    return orderApi.timeline(orderId);
+    const list = await orderApi.timeline(orderId);
+    return list.map(mapTimelineEvent);
   }
 
   // Subscribe to order updates
   static subscribeToOrderUpdates(orderId: string, callback: (order: any) => void) {
-    return subscribe(`order:${orderId}`, 'order.updated', callback);
+    return subscribe(`order:${orderId}`, 'order.updated', (payload: any) => callback(mapOrder(payload)));
   }
 
   // Update order status
@@ -258,7 +355,8 @@ export class OrderService {
     eventData: Record<string, any> = {},
     triggerSource: 'manual' | 'system' | 'webhook' | 'api' = 'manual'
   ): Promise<OrderTimelineEvent> {
-    return orderApi.createTimeline(orderId, { eventType, description, eventData, triggerSource });
+    const api = await orderApi.createTimeline(orderId, { eventType, description, eventData, triggerSource });
+    return mapTimelineEvent(api);
   }
 
   // Subscribe to real-time order updates (alias for subscribeToOrderUpdates)
