@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/lib/profile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,14 +10,19 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { sendOrderUpdateEmail } from "@/lib/email";
+import { OrderService } from "@/lib/services/orderService";
+import { fileApi } from "@/lib/services/fileApi";
+import { http } from "@/lib/http";
 
 const statuses = [
   "draft",
-  "pending",
-  "confirmed",
+  "deposit_pending",
+  "deposit_paid",
   "in_production",
+  "ready_to_ship",
   "shipped",
   "delivered",
+  "completed",
   "cancelled",
 ];
 
@@ -61,42 +65,23 @@ export default function AdminOrderDetail() {
     queryKey: ["admin-order", id],
     queryFn: async () => {
       if (!id) return null;
-      const { data, error } = await (supabase as any)
-        .from("orders")
-        .select("id, order_number, company_id, user_id, product_id, product_name, quantity, total_amount, status, admin_notes, created_at, updated_at")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      return data as Order | null;
+      return await OrderService.getOrder(id);
     },
     enabled: !!id,
   });
 
-  const { data: customer } = useQuery<{ email: string | null; first_name?: string | null; last_name?: string | null } | null>({
+  const { data: customer } = useQuery<{ email: string | null } | null>({
     queryKey: ["admin-order-customer", order?.user_id],
-    queryFn: async () => {
-      if (!order?.user_id) return null;
-      const { data, error } = await (supabase as any)
-        .from("profiles")
-        .select("email, first_name, last_name")
-        .eq("user_id", order.user_id)
-        .maybeSingle();
-      if (error) throw error;
-      return data as any;
-    },
-    enabled: !!order?.user_id,
+    queryFn: async () => ({ email: null }),
+    enabled: false,
   });
 
   const { data: payments } = useQuery<any[]>({
     queryKey: ["admin-order-payments", id],
     queryFn: async () => {
       if (!id) return [];
-      const { data, error } = await (supabase as any)
-        .from("payments")
-        .select("phase, metadata")
-        .eq("order_id", id);
-      if (error) throw error;
-      return (data || []) as any[];
+      const list = await OrderService.getPayments(id);
+      return list as any[];
     },
     enabled: !!id,
   });
@@ -105,25 +90,35 @@ export default function AdminOrderDetail() {
     queryKey: ["admin-order-updates", id],
     queryFn: async () => {
       if (!id) return [] as ProductionUpdate[];
-      const { data, error } = await (supabase as any)
-        .from("production_updates")
-        .select("id, order_id, stage, status, description, photos, estimated_completion, actual_completion, created_at")
-        .eq("order_id", id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as ProductionUpdate[];
+      const list = await OrderService.getProductionUpdates(id);
+      return list as any as ProductionUpdate[];
     },
     enabled: !!id,
   });
 
+  // Files list
+  const { data: files } = useQuery<any[]>({
+    queryKey: ["admin-order-files", id],
+    queryFn: async () => {
+      if (!id) return [];
+      return await fileApi.listByOrder(id);
+    },
+    enabled: !!id,
+  });
+
+  // Subscribe to realtime order updates
+  useEffect(() => {
+    if (!id) return;
+    const unsub = OrderService.subscribeToOrderUpdates(id, (updated) => {
+      qc.setQueryData(["admin-order", id], updated);
+    }) as any;
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, [id, qc]);
+
   const updateOrder = useMutation({
     mutationFn: async (patch: Partial<Order>) => {
       if (!id) return;
-      const { error } = await (supabase as any)
-        .from("orders")
-        .update(patch)
-        .eq("id", id);
-      if (error) throw error;
+      await OrderService.updateOrder(id, patch);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-order", id] });
@@ -132,6 +127,9 @@ export default function AdminOrderDetail() {
     },
     onError: (err: any) => toast({ title: "Failed", description: String(err?.message || err), variant: "destructive" as any }),
   });
+
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   if (loadingProfile || loadingOrder) {
     return (
@@ -261,6 +259,42 @@ export default function AdminOrderDetail() {
           </div>
         </div>
 
+        <div className="mt-6">
+          <h2 className="text-lg font-medium mb-2">Files</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <Input type="file" onChange={(e) => setSelectedFile(e.currentTarget.files?.[0] || null)} />
+            <Button
+              disabled={!selectedFile || uploading}
+              onClick={async () => {
+                if (!id || !selectedFile) return;
+                try {
+                  setUploading(true);
+                  await fileApi.uploadToOrder(id, selectedFile, 'artwork');
+                  setSelectedFile(null as any);
+                  qc.invalidateQueries({ queryKey: ["admin-order-files", id] });
+                  toast({ title: "Uploaded", description: "File uploaded." });
+                } catch (e: any) {
+                  toast({ title: "Upload failed", description: String(e?.message || e), variant: "destructive" as any });
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            >
+              {uploading ? 'Uploading…' : 'Upload'}
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {(files || []).map((f: any) => (
+              <a key={f.id} href={f.fileUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
+                {f.fileName}
+              </a>
+            ))}
+            {(files || []).length === 0 && (
+              <div className="text-sm text-muted-foreground">No files uploaded.</div>
+            )}
+          </div>
+        </div>
+
         <div className="mt-6 grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader><CardTitle>Customer Communication</CardTitle></CardHeader>
@@ -285,12 +319,8 @@ export default function AdminOrderDetail() {
               <Button
                 onClick={async () => {
                   try {
-                    const { data, error } = await (supabase as any).functions.invoke("create-invoice", {
-                      body: { order_id: order.id, phase: "deposit" },
-                    });
-                    if (error) throw error;
-                    const url = (data as any)?.url as string | undefined;
-                    toast({ title: "Deposit Invoice Sent", description: url ? `Link: ${url}` : "Sent via Stripe" });
+                    const data = await http.post<{ invoiceUrl: string }>(`/api/payments/create-invoice`, { orderId: order.id });
+                    toast({ title: "Deposit Invoice Sent", description: data?.invoiceUrl ? `Link: ${data.invoiceUrl}` : "Sent via Stripe" });
                   } catch (e: any) {
                     toast({ title: "Failed", description: String(e?.message || e), variant: "destructive" as any });
                   }
@@ -302,12 +332,8 @@ export default function AdminOrderDetail() {
               <Button
                 onClick={async () => {
                   try {
-                    const { data, error } = await (supabase as any).functions.invoke("create-invoice", {
-                      body: { order_id: order.id, phase: "balance" },
-                    });
-                    if (error) throw error;
-                    const url = (data as any)?.url as string | undefined;
-                    toast({ title: "Balance Invoice Sent", description: url ? `Link: ${url}` : "Sent via Stripe" });
+                    const data = await http.post<{ invoiceUrl: string }>(`/api/payments/create-invoice`, { orderId: order.id });
+                    toast({ title: "Balance Invoice Sent", description: data?.invoiceUrl ? `Link: ${data.invoiceUrl}` : "Sent via Stripe" });
                   } catch (e: any) {
                     toast({ title: "Failed", description: String(e?.message || e), variant: "destructive" as any });
                   }
