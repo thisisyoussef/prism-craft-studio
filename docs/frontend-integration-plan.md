@@ -198,3 +198,188 @@
 - File uploads work and render
 - Payments actions produce URLs and are handled by UI
 - No Supabase data calls remain outside auth
+
+---
+
+### 17) TypeScript Models, DTOs, and Mappers
+- Create `src/types/api.ts` mirroring server serializers (Order, Payment, ProductionUpdate, TimelineEvent, Sample, DesignerBooking, Product, PricingRule, Company, Profile, FileUpload).
+- Create `src/types/forms.ts` for client-side payloads (e.g., `CreateOrderPayload`).
+- Add mapper utilities in `src/lib/mappers.ts` if any transformation is required between UI models and API DTOs.
+- Test Plan:
+  - Type-only: ensure no `any` in service public APIs.
+  - Unit: mappers tested for round-trip consistency where applicable.
+
+---
+
+### 18) Testing: MSW and Contract Tests
+- Add MSW (`msw`) and define handlers for each endpoint under `src/tests/msw/handlers.ts`.
+- Use MSW in unit/integration tests to simulate API responses and error cases.
+- Contract tests: define JSON schemas (Zod) for critical responses and validate at runtime in dev/test.
+- Test Plan:
+  - Unit: services call correct endpoints and parse responses via Zod.
+  - Integration: page-level tests mount components with MSW handlers.
+
+---
+
+### 19) API Definition and Client Generation (optional)
+- Define OpenAPI spec for the backend (or generate from routes).
+- Use `openapi-typescript` to produce types; optionally generate a typed client.
+- Wire generated types into `api.ts` to ensure request/response shapes.
+- Test Plan:
+  - Type checks compile; drift detection in CI (generate and diff).
+
+---
+
+### 20) Data Fetching, Caching, and Optimistic UI
+- Adopt React Query (or SWR) for data fetching:
+  - Create `src/lib/queryClient.ts` with default stale times and retry policy.
+  - Wrap app in `QueryClientProvider`.
+- Orders:
+  - Query keys: `['orders', filters]`, `['order', id]`, `['order', id, 'payments']`, `['order', id, 'production']`, `['order', id, 'timeline']`.
+  - On socket `order.updated`, update `['order', id]` cache via `queryClient.setQueryData` and invalidate list.
+- Optimistic updates: for `PATCH /api/orders/:id`, optimistically set cache then rollback on error.
+- Test Plan:
+  - Unit: cache updates on socket event.
+  - Integration: optimistic UI shows updated status immediately; reverts if API fails.
+
+---
+
+### 21) Pagination, Sorting, Filtering
+- Standardize list fetching with query params and a shared helper to serialize filters.
+- UI tables receive `total` (if added later) or use cursor/offset strategy.
+- Preserve filters in URL (querystring) for shareable views.
+- Test Plan:
+  - Unit: correct query param serialization.
+  - Manual: filter + pagination navigation preserves state.
+
+---
+
+### 22) Socket Auth Lifecycle, Reconnection, and Token Refresh
+- Pass access token in `auth` when creating socket; on Supabase token refresh, call `socket.auth = { token: newToken }; socket.connect()`.
+- Enable auto-reconnect with exponential backoff; surface connection state in a tiny indicator.
+- On reconnect, re-emit room subscriptions maintained in memory.
+- Test Plan:
+  - Simulate token refresh: verify new token used and connection restored.
+  - Manual: stop/start backend; socket reconnects and resubscribes.
+
+---
+
+### 23) Performance and Monitoring
+- Network:
+  - Batch parallel requests on detail pages with `Promise.all`.
+  - Use HTTP/2 keep-alive and GZIP/Brotli (server default).
+- UI:
+  - Code-split admin pages; lazy-load heavy components.
+  - Virtualize long lists.
+- Monitoring:
+  - Add web vitals reporting; optional Sentry for frontend.
+- Test Plan:
+  - Lighthouse baseline; ensure no regressions after wiring.
+
+---
+
+### 24) Accessibility and UX
+- Ensure live updates are accessible: announce order status changes via ARIA live regions.
+- Provide focus management and keyboard navigation for modals and forms.
+- Use semantic HTML for tables/lists; alt text for uploaded images.
+- Test Plan:
+  - Axe checks in CI; manual screen reader spot checks on key pages.
+
+---
+
+### 25) QA Matrix (Browsers/Devices)
+- Browsers: Chrome, Firefox, Safari, Edge latest 2 versions.
+- Devices: Desktop, common mobile viewport.
+- Scenarios: login, product list, order create, order update (realtime), production update, upload, checkout invoice, profile/company edit, pricing fetch.
+- Test Plan:
+  - Checklist-based verification; record video on first pass for future reference.
+
+---
+
+### 26) Rollout Strategy and Feature Flags
+- Phased rollout using `FEATURE_USE_NODE_API`:
+  1) Internal team only.
+  2) 10% cohort.
+  3) 50% cohort.
+  4) 100% rollout; keep fallback for 1-2 weeks.
+- Observability: track API error rates and socket disconnects.
+- Test Plan:
+  - Toggle flag in staging; confirm immediate switch-over and fallback.
+
+---
+
+### 27) Security Considerations
+- Never store access tokens in localStorage beyond Supabase’s own storage; pass token in Authorization header only.
+- Sanitize user-provided content before render (e.g., production notes) or render as text only.
+- Ensure file links are scoped and not world-writable in prod (S3 presigned URLs in production phase).
+- Test Plan:
+  - Manual: verify no secrets in client bundle; CORS configured correctly.
+
+---
+
+### 28) Error Boundaries and Fallbacks
+- Add error boundaries at page level; render retry button and diagnostics (request ID if provided by server).
+- Implement global offline indicator for network down scenarios.
+- Test Plan:
+  - Integration: mock 500s; assert boundaries render fallback UI.
+
+---
+
+### 29) Telemetry and Logging
+- Centralize API error logging with correlation IDs from server responses.
+- Track socket connection events and room joins (debug mode only).
+- Optional: add user action analytics for create/update flows.
+- Test Plan:
+  - Unit: logger invoked on error; includes endpoint and status.
+
+---
+
+### 30) CI Enhancements for Frontend
+- Add type-check, lint, unit tests with MSW, and minimal Playwright E2E for key flows (create order, update status realtime, upload file).
+- Cache node_modules and Playwright browsers.
+- Test Plan:
+  - Green CI with all checks; artifacts include videos on failure.
+
+---
+
+### 31) Developer Ergonomics
+- Add `npm run dev:all` to start backend + frontend concurrently.
+- Provide `scripts/mock-api.ts` to run MSW in dev for isolated UI work (optional).
+- Update README with new environment variables and workflows.
+
+---
+
+### 32) Risks and Mitigations
+- Token drift between fetch and socket: subscribe to auth changes; refresh socket on change.
+- Inconsistent data after optimistic updates: reconcile on server response and on socket event confirmation.
+- Large file uploads: add size/type checks client-side; show progress; consider chunking.
+
+---
+
+### 33) Cutover Rehearsal and Post-Cutover Validation
+- Rehearsal in staging: complete all E2E test flows across 2 browsers.
+- Post-cutover: monitor logs, error rates, and socket stability for 48 hours; maintain rollback flag.
+
+---
+
+### 34) Page-by-Page Checklist (Concrete Edits)
+- `src/pages/AdminOrders.tsx`:
+  - Replace list fetch with GET `/api/orders` via http client
+  - Add filters → query params
+  - Remove Supabase realtime here (optional)
+- `src/pages/AdminOrderDetail.tsx`:
+  - Replace all Supabase data calls with REST endpoints
+  - Initialize socket and subscribe to `order:<id>` for `order.updated`
+  - Update state on event; invalidate React Query caches
+  - Replace file uploads with FormData to `/api/files/upload`
+- `src/pages/AdminInventory.tsx` / Product pages:
+  - Fetch products from `/api/products`
+  - Admin create via POST (if needed)
+- `src/pages/Settings.tsx`:
+  - Profile: GET/PATCH `/api/profile`
+  - Company: GET/PATCH `/api/company`
+- `src/pages/ProductSpecs.tsx`:
+  - Fetch `/api/pricing`
+- Global:
+  - Remove references to `src/lib/supabase.ts` and channel subscriptions in UI code; keep auth client.
+  - Add socket client, http client, and query provider
