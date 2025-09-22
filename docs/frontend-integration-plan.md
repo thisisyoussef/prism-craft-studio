@@ -198,3 +198,65 @@
 - File uploads work and render
 - Payments actions produce URLs and are handled by UI
 - No Supabase data calls remain outside auth
+
+---
+
+### Lean Page-by-Page Dev Checklist (make it work + test it)
+
+- AdminOrders (`src/pages/AdminOrders.tsx`)
+  - Wire GET `/api/orders` with filters via query params (status, limit, offset)
+  - Verify list renders; clicking a row routes to detail
+  - Dev test: filter list; verify network calls and UI update
+
+- AdminOrderDetail (`src/pages/AdminOrderDetail.tsx`)
+  - On mount: GET `/api/orders/:id`, `/api/orders/:id/payments`, `/api/orders/:id/production-updates`, `/api/orders/:id/timeline`
+  - PATCH `/api/orders/:id` to change status (admin control)
+  - POST `/api/orders/:id/production-updates` to add update
+  - POST `/api/orders/:id/timeline` to add event
+  - Socket: subscribe to `order:<id>`, listen for `order.updated`, update state
+  - Files: POST `/api/files/upload` (FormData: orderId, filePurpose, file); GET `/api/files/order/:id` to show list; open URL
+  - Dev test: change status → realtime update shows; add production update; add timeline event; upload file and see it listed
+
+- Products/Inventory (`src/pages/AdminInventory.tsx` or equivalent)
+  - GET `/api/products` to display catalog
+  - (If admin create/edit is needed) POST `/api/products`
+  - Dev test: products render from API
+
+- Samples (`src/pages/...` where sample flows live)
+  - POST `/api/samples` to create; GET `/api/samples` list; GET `/api/samples/:id` detail; PATCH `/api/samples/:id` for status/tracking
+  - Dev test: create sample → appears in list; update status; verify
+
+- Designer Bookings (`src/pages/...` booking flows)
+  - POST `/api/bookings` to create; GET `/api/bookings` list; PATCH `/api/bookings/:id` for status
+  - Dev test: create booking → list; update status
+
+- Settings (`src/pages/Settings.tsx`)
+  - Profile: GET/PATCH `/api/profile`
+  - Company: GET/PATCH `/api/company`
+  - Dev test: update profile name; see reflected; company rename persists
+
+- Pricing (`src/pages/ProductSpecs.tsx` or pricing view)
+  - GET `/api/pricing` to display current rules
+  - Dev test: pricing table renders
+
+- Payments actions (from order detail or actions menu)
+  - Checkout: POST `/api/payments/create-checkout { orderId, phase }` then redirect to `url`
+  - Invoice: POST `/api/payments/create-invoice { orderId }` then open `invoiceUrl`
+  - Dev test: mock keys → URLs returned; UI handles redirect/open
+
+- Global app wiring
+  - HTTP client uses `VITE_API_BASE_URL`; attaches Supabase access token in `Authorization`
+  - Socket client uses `VITE_SOCKET_URL`; connect on login, disconnect on logout; resubscribe on route change as needed
+  - Remove Supabase data queries; keep Supabase Auth only
+  - Optional feature flag `FEATURE_USE_NODE_API` to toggle
+  - Dev test: sign in → requests include Bearer token; socket connects; sign out → socket disconnects
+
+- Full-flow smoke (manual)
+  1) Create order → list shows it → open detail
+  2) Change status → realtime update appears
+  3) Add production update → visible in list
+  4) Add timeline event → visible
+  5) Upload artwork → appears and opens
+  6) Trigger checkout and invoice → URLs handled
+  7) Update profile and company → persisted
+  8) View products and pricing → rendered
