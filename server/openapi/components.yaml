@@ -1,0 +1,612 @@
+components:
+  schemas:
+    Address:
+      example:
+        street: 123 Main St
+        city: Dearborn
+        state: MI
+        zipCode: 48126
+        country: US
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+    Ok:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      example:
+        ok: true
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        pages:
+          type: integer
+          minimum: 0
+      example:
+        page: 1
+        limit: 20
+        total: 87
+        pages: 5
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [admin, customer]
+        companyName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        address:
+          $ref: '#/components/schemas/Address'
+        isActive:
+          type: boolean
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      example:
+        id: "64f1a2b3c4d5e6f7890a1234"
+        email: user@example.com
+        firstName: Fatimah
+        lastName: Ali
+        role: customer
+        companyName: Community Shirts
+        phone: "+1-313-555-0123"
+        address:
+          street: 123 Main St
+          city: Dearborn
+          state: MI
+          zipCode: 48126
+          country: US
+        isActive: true
+        lastLogin: "2025-09-01T14:12:00.000Z"
+        createdAt: "2025-08-01T12:00:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    AuthRegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+        firstName: { type: string }
+        lastName: { type: string }
+        role: { type: string, enum: [admin, customer] }
+        companyName: { type: string }
+        phone: { type: string }
+        address: { $ref: '#/components/schemas/Address' }
+      example:
+        email: user@example.com
+        password: my-secure-password
+        firstName: Fatimah
+        lastName: Ali
+        companyName: Community Shirts
+        phone: "+1-313-555-0123"
+        address:
+          street: 123 Main St
+          city: Dearborn
+          state: MI
+          zipCode: 48126
+          country: US
+    AuthLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      example:
+        email: user@example.com
+        password: my-secure-password
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        token:
+          type: string
+      example:
+        message: Login successful
+        user:
+          id: "64f1a2b3c4d5e6f7890a1234"
+          email: user@example.com
+          firstName: Fatimah
+          lastName: Ali
+          role: customer
+          isActive: true
+          createdAt: "2025-08-01T12:00:00.000Z"
+          updatedAt: "2025-09-01T14:12:00.000Z"
+        token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 6 }
+      example:
+        currentPassword: oldpass123
+        newPassword: newpass456
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string }
+        basePrice: { type: number }
+        description: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+        images:
+          type: array
+          items: { type: string }
+        materials:
+          type: array
+          items: { type: string }
+        colors:
+          type: array
+          items: { type: string }
+        sizes:
+          type: array
+          items: { type: string }
+        minimumQuantity: { type: integer }
+        moq: { type: integer }
+        specifications:
+          type: object
+          additionalProperties: true
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "smp_1"
+        sampleNumber: SMPL-1725250000000
+        products: []
+        totalPrice: 25.0
+        status: ordered
+        shippingAddress:
+          city: Dearborn
+          state: MI
+          country: US
+        createdAt: "2025-09-01T14:12:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    FileUpload:
+      type: object
+      properties:
+        id: { type: string }
+        fileName: { type: string }
+        fileSize: { type: integer }
+        fileType: { type: string }
+        fileUrl: { type: string }
+        filePurpose:
+          type: string
+          enum: [artwork, tech_pack, reference, proof, final_design]
+          description: Purpose of the file in the workflow
+        uploadedAt: { type: string, format: date-time }
+        images:
+          type: array
+          items: { type: string }
+        materials:
+          type: array
+          items: { type: string }
+    PricingRule:
+      type: object
+      properties:
+        id: { type: string }
+        productType: { type: string }
+        customizationType: { type: string }
+        quantityMin: { type: integer }
+        quantityMax: { type: integer }
+        basePrice: { type: number }
+        customizationCost: { type: number }
+        discountPercentage: { type: number }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: pr_66de700fa9c1
+        productType: hoodie
+        customizationType: screen_print
+        quantityMin: 50
+        quantityMax: 99
+        basePrice: 25
+        customizationCost: 3
+        discountPercentage: 5
+        active: true
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        customerId: { type: string, nullable: true }
+        customerEmail: { type: string, nullable: true }
+        customerName: { type: string, nullable: true }
+        companyName: { type: string, nullable: true }
+        orderNumber: { type: string }
+        productCategory: { type: string }
+        productId: { type: string, nullable: true }
+        productName: { type: string }
+        quantity: { type: integer }
+        unitPrice: { type: number }
+        totalAmount: { type: number }
+        customization:
+          type: object
+          additionalProperties: true
+          description: Arbitrary customization details such as print method, ink colors, placements, and notes
+          example:
+            printMethod: screen_print
+            inkColors: 2
+            placements:
+              - front
+              - back
+            pantone: 286C
+            notes: Match school blue
+        colors:
+          type: array
+          items: { type: string }
+        sizes:
+          type: object
+          additionalProperties: true
+          description: Size breakdown mapping size code to quantity
+          example:
+            XS: 5
+            S: 20
+            M: 35
+            L: 25
+            XL: 10
+        printLocations:
+          type: array
+          items: { type: string }
+        status:
+          type: string
+          enum: [submitted, paid, in_production, shipping, delivered]
+          description: |
+            Order lifecycle status
+            - submitted: customer placed order but payment not marked as complete
+            - paid: full payment was marked completed
+            - in_production: work in progress
+            - shipping: order is with carrier; shipping fee auto-charged
+            - delivered: customer confirmed receipt or marked by admin
+        priority: { type: string, nullable: true }
+        labels:
+          type: array
+          items: { type: string }
+        totalPaidAmount: { type: number }
+        shippingPaidAmount: { type: number }
+        paidAt: { type: string, format: date-time, nullable: true }
+        shippingPaidAt: { type: string, format: date-time, nullable: true }
+        shippingAddress:
+          type: object
+          additionalProperties: true
+          example:
+            name: City Youth League
+            street: 123 Main St
+            city: Springfield
+            state: IL
+            zip: "62704"
+            country: US
+        trackingNumber: { type: string, nullable: true }
+        estimatedDelivery: { type: string, format: date-time, nullable: true }
+        actualDelivery: { type: string, format: date-time, nullable: true }
+        artworkFiles:
+          type: array
+          items: { type: string }
+        productionNotes: { type: string, nullable: true }
+        customerNotes: { type: string, nullable: true }
+        adminNotes: { type: string, nullable: true }
+        stripeDepositPaymentIntent: { type: string, nullable: true }
+        stripeBalancePaymentIntent: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: 66de612b3f3cc9b4c7f5a9d2
+        customerId: usr_12345
+        customerEmail: buyer@example.com
+        customerName: Ahmed Ali
+        companyName: City Youth League
+        orderNumber: ORD-1725663000000
+        productCategory: hoodie
+        productId: 66de5f6b3f3cc9b4c7f5a9a0
+        productName: Classic Hoodie
+        quantity: 95
+        unitPrice: 28.5
+        totalAmount: 2707.5
+        customization:
+          printMethod: screen_print
+          inkColors: 2
+          placements: [front, back]
+          pantone: 286C
+          notes: Match school blue
+        colors: [navy]
+        sizes:
+          XS: 5
+          S: 20
+          M: 35
+          L: 25
+          XL: 10
+        printLocations: [front, back]
+        status: paid
+        totalPaidAmount: 2707.5
+        shippingPaidAmount: 0
+        paidAt: 2025-08-25T14:45:00.000Z
+        shippingAddress:
+          name: City Youth League
+          street: 123 Main St
+          city: Springfield
+          state: IL
+          zip: "62704"
+          country: US
+        trackingNumber: null
+        artworkFiles: []
+        createdAt: 2025-08-25T14:40:00.000Z
+        updatedAt: 2025-08-25T14:46:00.000Z
+    Payment:
+      type: object
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        phase:
+          type: string
+          enum: [full_payment, shipping_fee]
+          description: Payment phase for the order. full_payment is charged up-front, shipping_fee is charged at shipping.
+        amountCents: { type: integer }
+        currency: { type: string }
+        status:
+          type: string
+          enum: [pending, requires_action, paid, failed]
+          description: Processor status of the payment
+        stripePaymentIntentId: { type: string, nullable: true }
+        stripeCheckoutSessionId: { type: string, nullable: true }
+        stripeChargeId: { type: string, nullable: true }
+        paidAt: { type: string, format: date-time, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: pay_01J5YQZX0ABCDEF
+        orderId: 66de60ab3f3cc9b4c7f5a9c1
+        phase: full_payment
+        amountCents: 125000
+        currency: usd
+        status: paid
+        stripePaymentIntentId: pi_3Pabc123
+        paidAt: 2025-08-25T14:45:00.000Z
+        metadata:
+          method: stripe
+    OrderTimeline:
+      type: object
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        eventType: { type: string }
+        description: { type: string }
+        eventData:
+        basePrice: { type: number }
+        description: { type: string }
+        imageUrl: { type: string }
+        images: { type: array, items: { type: string } }
+        materials: { type: array, items: { type: string } }
+        colors: { type: array, items: { type: string } }
+        sizes: { type: array, items: { type: string } }
+        minimumQuantity: { type: integer }
+        moq: { type: integer }
+        specifications:
+          type: object
+          additionalProperties: true
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        notes: { type: string, nullable: true }
+        projectFiles:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "bkg_1"
+        designerId: "des_1"
+        consultationType: logo_design
+        scheduledDate: "2025-09-04T14:00:00.000Z"
+        durationMinutes: 60
+        status: scheduled
+        price: 49.0
+        meetingLink: https://meet.example.com/xyz
+        notes: Please review brand colors
+        projectFiles: []
+        createdAt: "2025-09-01T14:12:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    Profile:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        companyId: { type: string, nullable: true }
+        firstName: { type: string, nullable: true }
+        lastName: { type: string, nullable: true }
+        role: { type: string }
+        phone: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "pro_1"
+        userId: "64f1a2b3c4d5e6f7890a1234"
+        companyId: "cmp_1"
+        firstName: Fatimah
+        lastName: Ali
+        role: customer
+        phone: "+1-313-555-0123"
+        createdAt: "2025-08-01T12:00:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    DesignerBooking:
+      type: object
+      properties:
+        id: { type: string }
+        designerId: { type: string }
+        consultationType: { type: string }
+        scheduledDate: { type: string, format: date-time }
+        durationMinutes: { type: integer }
+        status:
+          type: string
+          enum: [scheduled, confirmed, in_progress, completed, cancelled, rescheduled]
+          description: Booking lifecycle status
+        price: { type: number }
+        meetingLink: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        projectFiles:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "bkg_1"
+        designerId: "des_1"
+        consultationType: logo_design
+        scheduledDate: "2025-09-04T14:00:00.000Z"
+        durationMinutes: 60
+        status: scheduled
+        price: 49.0
+        meetingLink: https://meet.example.com/xyz
+        notes: Please review brand colors
+        projectFiles: []
+        createdAt: "2025-09-01T14:12:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    Company:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        industry: { type: string, nullable: true }
+        size: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        billingAddress:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: "cmp_1"
+        name: Community Shirts
+        industry: Apparel
+        size: small
+        address: 123 Main St, Dearborn, MI 48126
+        phone: "+1-313-555-0123"
+        billingAddress:
+          street: 456 Billing Rd
+          city: Dearborn
+          state: MI
+          zipCode: "48126"
+          country: US
+        createdAt: "2025-08-01T12:00:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    Sample:
+      type: object
+      properties:
+        id: { type: string }
+        sampleNumber: { type: string }
+        products:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        totalPrice: { type: number }
+        status:
+          type: string
+          enum: [ordered, processing, shipped, delivered, converted_to_order]
+          description: Sample lifecycle status
+        shippingAddress:
+          type: object
+          additionalProperties: true
+        trackingNumber: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: smp_66de72ac9c1
+        sampleNumber: SMPL-1725250000000
+        products:
+          - productId: 66de5f6b3f3cc9b4c7f5a9a0
+            name: Classic Hoodie
+            color: navy
+            size: L
+            quantity: 1
+        totalPrice: 25
+        status: ordered
+        shippingAddress:
+          city: Dearborn
+          state: MI
+          country: US
+        createdAt: "2025-09-01T14:12:00.000Z"
+        updatedAt: "2025-09-01T14:12:00.000Z"
+    StripeCheckoutSession:
+      type: object
+      properties:
+        id: { type: string }
+        url: { type: string }
+    StripeInvoice:
+      type: object
+      properties:
+        id: { type: string }
+        invoiceUrl: { type: string }
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Bad request
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Forbidden
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Not found

@@ -35,10 +35,12 @@ export default function PlacementEditor({ placement: p, placements, artworkFiles
         <Select value={p.method} onValueChange={(v) => onUpdate(p.id, { method: v as PrintMethod })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="screen-print">screen-print</SelectItem>
+            <SelectItem value="screen-print">screen print</SelectItem>
             <SelectItem value="embroidery">embroidery</SelectItem>
+            <SelectItem value="dtf">DTF</SelectItem>
+            <SelectItem value="dtg">DTG</SelectItem>
             <SelectItem value="vinyl">vinyl</SelectItem>
-            <SelectItem value="dtg">dtg</SelectItem>
+            <SelectItem value="heat_transfer">heat transfer</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -51,11 +53,6 @@ export default function PlacementEditor({ placement: p, placements, artworkFiles
           <Input type="number" min={1} step={0.5} value={p.size.heightIn}
             onChange={(e) => onUpdate(p.id, { size: { ...p.size, heightIn: parseFloat(e.target.value || '0') } })} />
         </div>
-      </div>
-      <div className="w-28">
-        <Label className="text-xs">Colors</Label>
-        <Input type="number" min={1} max={10} value={p.colorCount}
-          onChange={(e) => onUpdate(p.id, { colorCount: Math.max(1, parseInt(e.target.value || '1')) })} />
       </div>
       <div className="w-40">
         <ArtworkUploader

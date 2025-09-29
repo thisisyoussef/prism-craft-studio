@@ -7,43 +7,40 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useAuthStore, useOrderStore, useGuestStore } from "@/lib/store";
+import { useAuthStore, useGuestStore } from "@/lib/store";
 import { Package, Truck, Clock, CheckCircle, Star, Loader2, CreditCard } from "lucide-react";
 import toast from 'react-hot-toast';
 import AuthDialog from './AuthDialog';
 import GuestDetailsDialog from './GuestDetailsDialog';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { sendGuestDraftEmail } from '@/lib/email';
+import { listProducts, type ApiProduct } from '@/lib/services/productService';
+import { listByProductIds, type ApiVariant } from '@/lib/services/variantService';
 
-type ProductRow = {
-  id: string;
-  name: string;
-  description: string | null;
-  base_price: number | null;
-  image_url: string | null;
-};
+type ProductRow = ApiProduct;
 
-type VariantRow = {
-  id: string;
-  product_id: string;
-  color_name: string;
-  color_hex: string | null;
-  active: boolean | null;
-  image_url?: string | null;
-  front_image_url?: string | null;
-  back_image_url?: string | null;
-  sleeve_image_url?: string | null;
+type VariantRow = ApiVariant;
+
+type SampleItem = {
+  productId: string;
+  productName: string;
+  variantId?: string;
+  colorName?: string;
+  type: 'designed' | 'blank';
+  unitPrice: number;
+  designUrl?: string;
 };
 
 type SampleOrderFlowProps = {
   mode?: 'dialog' | 'inline';
-  selectedSamples?: string[];
+  selectedSamples?: string[]; // backward-compat path
+  items?: SampleItem[];       // preferred path
   hideSelection?: boolean;
   className?: string;
 };
 
-const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp, hideSelection = false, className }: SampleOrderFlowProps) => {
+const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp, items: itemsProp, hideSelection = false, className }: SampleOrderFlowProps) => {
   const [open, setOpen] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
   const [shippingAddress, setShippingAddress] = useState({
@@ -59,23 +56,14 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { user } = useAuthStore();
-  const { addSampleOrder } = useOrderStore();
   const { info } = useGuestStore();
 
   const { data: productsData } = useQuery<ProductRow[]>({
     queryKey: ['sample-products'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, description, base_price, image_url, customization_options')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      // Filter only active products
-      const activeProducts = (data || []).filter(p => {
-        const opts = p.customization_options as any;
-        return opts?.active === true || opts?.active === 'true';
-      });
-      return activeProducts;
+      const items = await listProducts();
+      // Public endpoint already returns active; filter defensively
+      return (items || []).filter(p => (p as any).active !== false) as ProductRow[];
     },
   });
 
@@ -86,24 +74,19 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
     queryFn: async () => {
       const ids = (productsData || []).map(p => p.id);
       if (ids.length === 0) return [] as VariantRow[];
-      const { data, error } = await (supabase as any)
-        .from('product_variants')
-        .select('id, product_id, color_name, color_hex, active, image_url, front_image_url, back_image_url, sleeve_image_url')
-        .in('product_id', ids);
-      if (error) throw error;
-      return (data as unknown as VariantRow[]) || [];
+      return await listByProductIds(ids) as VariantRow[];
     },
   });
 
   // Map product_id -> first available best image preferring front, then image, then back/sleeve
   const coverByProduct = useMemo(() => {
     const map = new Map<string, string | null>();
-    const list = variantsData || [];
+    const list = (variantsData || []) as ApiVariant[];
     for (const v of list) {
       if (v.active === false) continue;
-      const best = v.front_image_url || v.image_url || v.back_image_url || v.sleeve_image_url || null;
+      const best = v.frontImageUrl || v.imageUrl || v.backImageUrl || v.sleeveImageUrl || null;
       if (!best || best === '/placeholder.svg') continue; // Skip placeholder images
-      if (!map.has(v.product_id)) map.set(v.product_id, best);
+      if (!map.has(v.productId)) map.set(v.productId, best);
     }
     return map;
   }, [variantsData]);
@@ -112,9 +95,9 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
     (productsData || []).map(p => ({
       id: p.id,
       name: p.name,
-      price: Number(p.base_price || 0),
+      price: Number(p.basePrice || 0),
       description: p.description || 'Premium materials, quality prints',
-      image: coverByProduct.get(p.id) || (p.image_url !== '/placeholder.svg' ? p.image_url : '') || '',
+      image: coverByProduct.get(p.id) || (p.imageUrl && p.imageUrl !== '/placeholder.svg' ? p.imageUrl : '') || '',
       leadTime: '2-4 days',
     })),
   [productsData, coverByProduct]);
@@ -131,10 +114,20 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
     );
   };
 
-  const selectedTotal = effectiveSelected.reduce((total, sampleId) => {
-    const sample = sampleProducts.find(p => p.id === sampleId);
-    return total + (sample?.price || 0);
-  }, 0);
+  // Build a fallback items array if no items prop was provided
+  const fallbackItems: SampleItem[] = useMemo(() => effectiveSelected.map((id) => {
+    const sample = sampleProducts.find(p => p.id === id);
+    return {
+      productId: id,
+      productName: sample?.name || '',
+      type: 'designed',
+      unitPrice: 75,
+    } as SampleItem;
+  }), [effectiveSelected, sampleProducts]);
+
+  const effectiveItems: SampleItem[] = itemsProp && itemsProp.length ? itemsProp : fallbackItems;
+
+  const selectedTotal = effectiveItems.reduce((sum, it) => sum + (it.unitPrice || 0), 0);
 
   const shippingCost = selectedTotal > 50 ? 0 : 9.99;
   const grandTotal = selectedTotal + shippingCost;
@@ -149,7 +142,7 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
       return;
     }
 
-    if (effectiveSelected.length === 0) {
+    if (effectiveItems.length === 0) {
       toast.error('Please select at least one sample');
       return;
     }
@@ -161,31 +154,21 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
 
     setLoading(true);
     try {
-      const sampleData = {
-        company_id: user.id,
-        user_id: user.id,
-        products: effectiveSelected.map(id => {
-          const product = sampleProducts.find(p => p.id === id);
-          return {
-            id,
-            name: product?.name,
-            price: product?.price,
-            leadTime: product?.leadTime
-          };
-        }),
-        total_price: grandTotal,
-        status: 'ordered',
-        shipping_address: shippingAddress
+      // Persist to server for signed-in users
+      const payload = {
+        products: effectiveItems,
+        totalPrice: grandTotal,
+        shippingAddress,
       };
-
-      await addSampleOrder(sampleData);
-      toast.success('Sample order placed successfully!');
-      setOpen(false);
-      resetForm();
+      await api.post('/samples', payload);
+      toast.success('Sample order submitted')
+      setOpen(false)
+      setConfirmOpen(true)
+      resetForm()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to place sample order');
+      toast.error(error.message || 'Failed to submit sample request')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   };
 
@@ -326,12 +309,19 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
             <div className="space-y-3 mb-6">
               {effectiveSelected.map((sampleId) => {
                 const sample = sampleProducts.find(p => p.id === sampleId);
-                return sample ? (
+                const item = effectiveItems.find(it => it.productId === sampleId);
+                if (!sample) return null;
+                return (
                   <div key={sampleId} className="flex justify-between items-center">
-                    <span className="text-sm text-foreground">{sample.name}</span>
-                    <span className="text-sm font-medium">${sample.price}</span>
+                    <div className="text-sm text-foreground">
+                      <div>{sample.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {item?.type === 'blank' ? 'Blank' : 'Designed'}{item?.colorName ? ` • ${item.colorName}` : ''}
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium">${(item?.unitPrice ?? sample.price).toFixed(2)}</span>
                   </div>
-                ) : null;
+                );
               })}
             </div>
             <div className="space-y-2 border-t border-primary/10 pt-4 mb-6">
@@ -393,10 +383,7 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
                         return
                       }
                       try {
-                        const items = effectiveSelected.map((id) => {
-                          const p = sampleProducts.find(sp => sp.id === id)
-                          return { id, name: p?.name, price: p?.price }
-                        })
+                        const items = effectiveItems
                         const payload = {
                           type: 'sample',
                           info: info || {},
@@ -405,8 +392,6 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
                           totals: { subtotal: selectedTotal, shipping: shippingCost, total: grandTotal },
                           pricing: { selectedSamples: effectiveSelected, shippingAddress },
                         }
-                        const { error } = await (supabase as any).from('guest_drafts').insert(payload as any)
-                        if (error) throw error
                         await sendGuestDraftEmail('sample', info?.email, payload)
                         toast.success('Guest sample order saved. We\'ll follow up via email.')
                         setOpen(false)

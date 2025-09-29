@@ -689,7 +689,7 @@ export default function AiMockupEditor() {
             </div>
           </div>
           <AspectRatio ratio={aspectRatio}>
-            <div ref={containerRef} className="w-full h-full relative select-none">
+            <div ref={containerRef} className="w-full h-full relative select-none" style={{ touchAction: 'none' }}>
               <canvas ref={canvasRef} className="absolute inset-0 w-full h-full"/>
               <canvas ref={sketchRef} className="absolute inset-0 w-full h-full pointer-events-none"/>
             </div>

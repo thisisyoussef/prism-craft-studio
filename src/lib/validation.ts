@@ -40,7 +40,9 @@ export const signInSchema = z.object({
 })
 
 export const signUpSchema = z.object({
-  companyName: z.string().min(2, 'Company name must be at least 2 characters'),
+  firstName: z.string().min(2, 'First name must be at least 2 characters'),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  companyName: z.string().min(2, 'Company name must be at least 2 characters').optional().or(z.literal('')),
   email: z.string().email('Enter a valid business email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
@@ -53,6 +55,7 @@ const sizeQtySchema = z.record(z.string(), z.number().nonnegative())
 
 export const customizerSchema = z.object({
   productId: z.string().min(1, 'Select a product'),
+  selectedColors: z.array(z.string()).optional().default([]),
   sizesQty: sizeQtySchema.refine(
     (rec) => Object.values(rec).reduce((a, b) => a + (b || 0), 0) >= 50,
     'Enter size quantities totaling at least 50 pieces'
@@ -64,7 +67,6 @@ export const customizerSchema = z.object({
         location: z.string(),
         method: z.string(),
         size: z.object({ widthIn: z.number().positive(), heightIn: z.number().positive() }),
-        colorCount: z.number().int().positive(),
         active: z.boolean().optional(),
       })
     )

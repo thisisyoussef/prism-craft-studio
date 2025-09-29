@@ -1,8 +1,17 @@
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { vi } from 'vitest';
 import Settings from '../Settings';
 import { renderWithAppProviders } from '@/test/test-utils';
 import { useAuthStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
+
+vi.mock('@/lib/api', () => {
+  return {
+    default: {
+      patch: vi.fn().mockResolvedValue({ data: { success: true } }),
+    },
+  };
+});
 
 describe('Settings save profile', () => {
   it('saves profile and shows success toast', async () => {

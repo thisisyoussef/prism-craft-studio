@@ -1,0 +1,87 @@
+tags:
+  - name: Company
+    description: Company information linked to user profiles
+paths:
+  /api/company:
+    get:
+      tags: [Company]
+      summary: Get the current user's company
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+              example:
+                id: cmp_1
+                name: Community Shirts
+                industry: Apparel
+                size: small
+                address: 123 Main St, Dearborn, MI 48126
+                phone: "+1-313-555-0123"
+                logoUrl: https://cdn.example.com/logos/community-shirts.png
+                billingAddress:
+                  street: 456 Billing Rd
+                  city: Dearborn
+                  state: MI
+                  zipCode: "48126"
+                  country: US
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Company]
+      summary: Update the current user's company
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                industry: { type: string }
+                size: { type: string }
+                address: { type: string }
+                phone: { type: string }
+                logoUrl: { type: string }
+                billingAddress:
+                  type: object
+                  additionalProperties: true
+            example:
+              name: Community Shirts
+              phone: "+1-313-555-0123"
+              address: 123 Main St, Dearborn, MI 48126
+              billingAddress:
+                street: 456 Billing Rd
+                city: Dearborn
+                state: MI
+                zipCode: "48126"
+                country: US
+      responses:
+        '200':
+          description: Updated company
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+              example:
+                id: cmp_1
+                name: Community Shirts
+                industry: Apparel
+                size: small
+                address: 123 Main St, Dearborn, MI 48126
+                phone: "+1-313-555-0123"
+                logoUrl: https://cdn.example.com/logos/community-shirts.png
+                billingAddress:
+                  street: 456 Billing Rd
+                  city: Dearborn
+                  state: MI
+                  zipCode: "48126"
+                  country: US
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }

@@ -1,0 +1,116 @@
+tags:
+  - name: Products
+    description: Product catalog management
+paths:
+  /api/products:
+    get:
+      tags: [Products]
+      summary: List products (public)
+      security: []
+      responses:
+        '200':
+          description: Products list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+              example:
+                products:
+                  - id: "66a7f3ab2b1c4f7890a12345"
+                    name: Classic tee
+                    category: t-shirt
+                    basePrice: 9.99
+                    description: Soft cotton shirt, unisex fit
+                    imageUrl: https://cdn.example.com/p/tee.jpg
+                    images: [https://cdn.example.com/p/tee.jpg]
+                    materials: [cotton]
+                    colors: [black, white]
+                    sizes: [s, m, l, xl]
+                    minimumQuantity: 12
+                    moq: 12
+                    specifications:
+                      weight: 180gsm
+                    active: true
+                    createdAt: "2025-08-29T18:00:00.000Z"
+                    updatedAt: "2025-09-01T14:12:00.000Z"
+    post:
+      tags: [Products]
+      summary: Create product (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, category, basePrice]
+              properties:
+                name: { type: string }
+                category: { type: string }
+                basePrice: { type: number }
+                description: { type: string }
+                imageUrl: { type: string }
+                images:
+                  type: array
+                  items: { type: string }
+                materials:
+                  type: array
+                  items: { type: string }
+                colors:
+                  type: array
+                  items: { type: string }
+                sizes:
+                  type: array
+                  items: { type: string }
+                minimumQuantity: { type: integer }
+                moq: { type: integer }
+                specifications:
+                  type: object
+                  additionalProperties: true
+                active: { type: boolean }
+            example:
+              name: Classic Hoodie
+              category: hoodie
+              basePrice: 28.5
+              description: Midweight 8.5oz fleece hoodie
+              imageUrl: https://cdn.example.com/products/hoodie.jpg
+              colors: [black, navy, athletic_heather]
+              sizes: [XS, S, M, L, XL, 2XL]
+              minimumQuantity: 25
+              moq: 50
+              specifications:
+                fabric: 80% cotton / 20% polyester
+                fit: unisex regular
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+              example:
+                id: "66a7f3ab2b1c4f7890a12345"
+                name: Classic tee
+                category: t-shirt
+                basePrice: 9.99
+                description: Soft cotton shirt, unisex fit
+                imageUrl: https://cdn.example.com/p/tee.jpg
+                images: [https://cdn.example.com/p/tee.jpg]
+                materials: [cotton]
+                colors: [black, white]
+                sizes: [s, m, l, xl]
+                minimumQuantity: 12
+                moq: 12
+                specifications:
+                  weight: 180gsm
+                active: true
+                createdAt: "2025-08-29T18:00:00.000Z"
+                updatedAt: "2025-09-01T14:12:00.000Z"
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }

@@ -5,7 +5,7 @@ export interface OrderTimelineDocument extends Document {
 	eventType: string;
 	description: string;
 	eventData?: Record<string, any>;
-	triggerSource?: 'manual' | 'system' | 'webhook' | 'api';
+	triggerSource?: 'manual' | 'system' | 'webhook' | 'api' | 'admin';
 	triggeredBy?: Types.ObjectId;
 	createdAt: Date;
 }
@@ -15,7 +15,7 @@ const OrderTimelineSchema = new Schema<OrderTimelineDocument>({
 	eventType: { type: String, required: true },
 	description: { type: String, required: true },
 	eventData: { type: Schema.Types.Mixed },
-	triggerSource: { type: String, enum: ['manual', 'system', 'webhook', 'api'], default: 'manual' },
+	triggerSource: { type: String, enum: ['manual', 'system', 'webhook', 'api', 'admin'], default: 'manual' },
 	triggeredBy: { type: Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 

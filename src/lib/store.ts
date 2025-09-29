@@ -1,8 +1,7 @@
 import { create } from 'zustand'
-import { supabase } from '@/integrations/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import api, { setAuthToken, clearAuthToken } from '@/lib/api'
 import { toast } from '@/hooks/use-toast'
-import { OrderService } from '@/lib/services/orderService';
+import { OrderService } from '@/lib/services/orderServiceNode';
 import type { 
   Order, 
   CreateOrderPayload, 
@@ -13,11 +12,21 @@ import type {
   CreateProductionUpdatePayload
 } from '@/lib/types/order';
 
+// User returned by our Node.js API
+interface AppUser {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  role: 'admin' | 'customer'
+  companyName?: string
+}
+
 interface AuthState {
-  user: User | null
+  user: AppUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, companyName: string) => Promise<void>
+  signUp: (email: string, password: string, companyName: string, firstName: string, lastName: string) => Promise<void>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
 }
@@ -27,29 +36,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
 
   initialize: async () => {
+    set({ loading: true })
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      set({ user: session?.user ?? null, loading: false })
-
-      // Listen for auth changes
-      supabase.auth.onAuthStateChange((event, session) => {
-        set({ user: session?.user ?? null, loading: false })
-      })
-    } catch (error) {
-      console.error('Error initializing auth:', error)
-      set({ loading: false })
+      const { data } = await api.get('/auth/profile')
+      const user = (data?.user || data) as AppUser | undefined
+      set({ user: user ?? null, loading: false })
+    } catch (_err) {
+      set({ user: null, loading: false })
     }
   },
 
   signIn: async (email: string, password: string) => {
     set({ loading: true })
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) throw error
-      set({ user: data.user, loading: false })
+      const { data } = await api.post('/auth/login', { email, password })
+      const token: string | undefined = data?.token
+      if (!token) throw new Error('Missing auth token')
+      setAuthToken(token)
+      const user = data?.user as AppUser
+      set({ user, loading: false })
       toast({ 
         title: "Welcome back!", 
         description: "You've been signed in successfully." 
@@ -65,25 +70,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signUp: async (email: string, password: string, companyName: string) => {
+  signUp: async (email: string, password: string, companyName: string, firstName: string, lastName: string) => {
     set({ loading: true })
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data } = await api.post('/auth/register', {
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            company_name: companyName,
-          },
-        },
+        firstName,
+        lastName,
+        companyName,
       })
-      if (error) throw error
-      
-      set({ user: data.user, loading: false })
+      const token: string | undefined = data?.token
+      if (!token) throw new Error('Missing auth token')
+      setAuthToken(token)
+      const user = data?.user as AppUser
+      set({ user, loading: false })
       toast({ 
         title: "Account created!", 
-        description: "Please check your email to confirm your account." 
+        description: "You're signed in and ready to go." 
       })
     } catch (error) {
       set({ loading: false })
@@ -98,8 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      clearAuthToken()
       set({ user: null })
       toast({ 
         title: "Signed out", 
@@ -592,180 +595,29 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   fetchSamples: async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        set({ samples: [] });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('samples')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      set({ samples: data || [] });
-    } catch (error) {
-      console.error('Error fetching samples:', error);
-      set({ samples: [] });
-    }
+    // Samples are being migrated off Supabase; returning empty list for now
+    set({ samples: [] });
   },
 
   addSampleOrder: async (samples: any) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      const { data, error } = await supabase
-        .from('samples')
-        .insert({
-          user_id: user.id,
-          items: samples,
-          status: 'pending',
-          total_amount: 0
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      set(state => ({
-        samples: [data, ...state.samples]
-      }));
-
-      toast({
-        title: "Sample order created",
-        description: "Your sample order has been submitted successfully."
-      });
-
-      return data;
-    } catch (error) {
-      console.error('Error creating sample order:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create sample order. Please try again.",
-        variant: "destructive"
-      });
-      throw error;
-    }
+    // Samples are being migrated; store locally for UI continuity
+    const record = {
+      id: crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+      created_at: new Date().toISOString(),
+      items: samples,
+      status: 'pending',
+      total_amount: 0,
+    } as any
+    set(state => ({ samples: [record, ...state.samples] }))
+    toast({ title: 'Sample request received', description: 'We\'ll follow up by email.' })
+    return record
   },
 
   startCheckout: async (orderId, phase) => {
     try {
-      // Try to get payment row first (may not exist for older orders)
-      const { data: payment, error: payErr } = await (supabase as any)
-        .from('payments')
-        .select('amount_cents')
-        .eq('order_id', orderId)
-        .eq('phase', phase)
-        .maybeSingle()
-
-      let amountCents = payment?.amount_cents as number | undefined
-
-      // If not found, fallback to recomputing a 40/60 split from the order's total
-      if ((!amountCents || amountCents <= 0) || payErr) {
-        const { data: orderRow, error: orderErr } = await supabase
-          .from('orders')
-          .select('total_amount')
-          .eq('id', orderId)
-          .single()
-        if (orderErr) throw orderErr
-
-        const totalAmountCents = Math.round((Number((orderRow as any)?.total_amount) || 0) * 100)
-        const fallbackDeposit = Math.round(totalAmountCents * 0.4)
-        const fallbackBalance = Math.max(totalAmountCents - fallbackDeposit, 0)
-        amountCents = phase === 'deposit' ? fallbackDeposit : fallbackBalance
-
-        // Best-effort: upsert missing payments row so future calls succeed
-        if (amountCents && amountCents > 0) {
-          await (supabase as any)
-            .from('payments')
-            .upsert({ order_id: orderId, phase, amount_cents: amountCents, status: 'requires_payment_method' }, { onConflict: 'order_id,phase' })
-        }
-      }
-
-      if (!amountCents || amountCents <= 0) throw new Error('Invalid payment amount')
-      if (amountCents < 50) {
-        throw new Error('Stripe requires a minimum charge of $0.50 USD. Please increase the order total or contact support to arrange payment.')
-      }
-
-      // Call Edge Function to create Checkout Session
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: {
-          orderId,
-          phase,
-          amountCents,
-          currency: 'usd',
-        },
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      })
-      if (error) {
-        // Try to extract text/JSON error returned by the Edge Function
-        let serverMsg: string | undefined
-        try {
-          const anyErr: any = error as any
-          const resp = anyErr?.context
-          if (resp && typeof resp.text === 'function') {
-            const raw = await resp.text()
-            if (raw) {
-              try {
-                const body = JSON.parse(raw)
-                serverMsg = body?.error || body?.message || raw
-              } catch {
-                serverMsg = raw
-              }
-            }
-          }
-        } catch {}
-        console.warn('[functions.create-checkout] invoke failed, attempting direct fetch fallback...', serverMsg)
-
-        // Fallback: direct fetch to Functions URL to ensure body is sent
-        const functionsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`
-        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-        const { data: sessionData } = await supabase.auth.getSession()
-        const accessToken = sessionData?.session?.access_token || anonKey
-        const fallbackResp = await fetch(functionsUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'apikey': anonKey,
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ orderId, phase, amountCents, currency: 'usd' }),
-        })
-        if (!fallbackResp.ok) {
-          let msg = `Edge function error (${fallbackResp.status})`
-          try {
-            const raw = await fallbackResp.text()
-            if (raw) {
-              try {
-                const j = JSON.parse(raw)
-                msg = j?.error || j?.message || raw
-              } catch {
-                msg = raw
-              }
-            }
-          } catch {}
-          console.error('[functions.create-checkout] direct fetch failed', msg)
-          throw new Error(msg)
-        }
-        const j = await fallbackResp.json()
-        const url = (j as any)?.url
-        if (!url) throw new Error('Missing checkout URL')
-        window.location.href = url
-        return
-      }
-
-      const url = (data as any)?.url
-      if (!url) throw new Error('Missing checkout URL')
-      window.location.href = url
+      const { url } = await OrderService.createCheckout(orderId, phase);
+      if (!url) throw new Error('Missing checkout URL');
+      window.location.href = url;
     } catch (err: any) {
       console.error('Failed to start checkout', err?.message || err, err)
       toast({
@@ -786,8 +638,6 @@ export interface PrintPlacement {
   id: string
   location: PrintLocation
   method: PrintMethod
-  colors: string[]
-  colorCount: number
   size: { widthIn: number; heightIn: number }
   position: { x: number; y: number } // normalized -1..1 relative to center
   rotationDeg?: number
@@ -859,8 +709,6 @@ export const usePricingStore = create<PricingState>((set, get) => ({
       id,
       location: print.location,
       method: print.method,
-      colors: [],
-      colorCount: 1,
       size: getDefaultSize(print.location),
       position: { x: 0, y: 0 },
       rotationDeg: 0,
@@ -930,14 +778,14 @@ export const usePricingStore = create<PricingState>((set, get) => ({
         'sweatshirt': 22.99
       }
 
-      // Simple per-print surcharge model (per piece)
+      // All methods included in base price: no surcharges for method, colors, or placements
       const methodBase: Record<PrintMethod, number> = {
-        'screen-print': 0.2, // per color below
-        'embroidery': 0.5,
-        'vinyl': 0.3,
-        'dtg': 0.4,
-        'dtf': 0.35,
-        'heat_transfer': 0.25,
+        'screen-print': 0,
+        'embroidery': 0,
+        'vinyl': 0,
+        'dtg': 0,
+        'dtf': 0,
+        'heat_transfer': 0,
       }
 
       const locationMultiplier: Record<PrintLocation, number> = {
@@ -955,12 +803,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
       const printsSurchargeUnit = (prints || []).reduce((sum, p) => {
         if (!p.active) return sum
         const locMul = locationMultiplier[p.location] ?? 1
-        let add = 0
-        if (p.method === 'screen-print') {
-          add = methodBase['screen-print'] * Math.max(1, p.colorCount || 1)
-        } else {
-          add = methodBase[p.method as PrintMethod] ?? 0
-        }
+        const add = methodBase[p.method as PrintMethod] ?? 0
         return sum + add * locMul
       }, 0)
 
@@ -988,6 +831,8 @@ export const usePricingStore = create<PricingState>((set, get) => ({
           baseUnit,
           printsSurchargeUnit,
           discountRate: discount,
+          unitPrice,
+          totalPrice,
         }
       })
     } catch (error) {

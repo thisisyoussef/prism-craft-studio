@@ -3,6 +3,10 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 export interface OrderDocument extends Document {
 	companyId?: Types.ObjectId;
 	userId?: Types.ObjectId;
+	customerId?: string;
+	customerEmail?: string;
+	customerName?: string;
+	companyName?: string;
 	orderNumber: string;
 	productCategory: string;
 	productId?: Types.ObjectId;
@@ -14,13 +18,11 @@ export interface OrderDocument extends Document {
 	colors?: string[];
 	sizes?: Record<string, any>;
 	printLocations?: string[];
-	status: string;
+	status: 'submitted' | 'paid' | 'in_production' | 'shipping' | 'delivered';
 	priority?: string;
 	labels?: string[];
-	depositAmount: number;
-	balanceAmount: number;
-	depositPaidAt?: Date;
-	balancePaidAt?: Date;
+	totalPaidAmount: number;
+	paidAt?: Date;
 	shippingAddress?: Record<string, any>;
 	trackingNumber?: string;
 	estimatedDelivery?: Date;
@@ -31,6 +33,30 @@ export interface OrderDocument extends Document {
 	adminNotes?: string;
 	stripeDepositPaymentIntent?: string;
 	stripeBalancePaymentIntent?: string;
+	// Design preview mockups
+	mockupImages?: {
+		front?: string;
+		back?: string;
+		sleeve?: string;
+		composite?: string;
+	};
+	// Lead time snapshot and ETA fields (v1)
+	leadTimeSnapshot?: {
+		production?: { minDays: number; maxDays: number };
+		shipping?: { minDays: number; maxDays: number };
+		businessCalendar?: { timezone: string; workingDays: string[] };
+		capturedAt?: Date;
+	};
+	expectedSchedule?: {
+		in_production?: { expectedStartAt?: Date; expectedEndAt?: Date };
+		shipping?: { expectedStartAt?: Date; expectedEndAt?: Date };
+	};
+	estimatedDeliveryWindow?: { start?: Date; end?: Date };
+	// Guest access fields
+	guestEmail?: string;
+	guestVerifiedAt?: Date;
+	claimedByUserId?: Types.ObjectId;
+	accessRevokedAt?: Date;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -38,6 +64,10 @@ export interface OrderDocument extends Document {
 const OrderSchema = new Schema<OrderDocument>({
 	companyId: { type: Schema.Types.ObjectId, ref: 'Company' },
 	userId: { type: Schema.Types.ObjectId, ref: 'User' },
+	customerId: { type: String },
+	customerEmail: { type: String },
+	customerName: { type: String },
+	companyName: { type: String },
 	orderNumber: { type: String, required: true, unique: true },
 	productCategory: { type: String, required: true },
 	productId: { type: Schema.Types.ObjectId, ref: 'Product' },
@@ -49,13 +79,15 @@ const OrderSchema = new Schema<OrderDocument>({
 	colors: [{ type: String }],
 	sizes: { type: Schema.Types.Mixed },
 	printLocations: [{ type: String }],
-	status: { type: String, default: 'deposit_pending' },
+	status: { 
+		type: String, 
+		enum: ['submitted', 'paid', 'in_production', 'shipping', 'delivered'],
+		default: 'submitted' 
+	},
 	priority: { type: String },
 	labels: [{ type: String }],
-	depositAmount: { type: Number, required: true },
-	balanceAmount: { type: Number, required: true },
-	depositPaidAt: { type: Date },
-	balancePaidAt: { type: Date },
+	totalPaidAmount: { type: Number, required: true, default: 0 },
+	paidAt: { type: Date },
 	shippingAddress: { type: Schema.Types.Mixed },
 	trackingNumber: { type: String },
 	estimatedDelivery: { type: Date },
@@ -66,6 +98,17 @@ const OrderSchema = new Schema<OrderDocument>({
 	adminNotes: { type: String },
 	stripeDepositPaymentIntent: { type: String },
 	stripeBalancePaymentIntent: { type: String },
+  // Store URLs for design preview images
+  mockupImages: { type: Schema.Types.Mixed },
+	// Lead time snapshot + schedule
+	leadTimeSnapshot: { type: Schema.Types.Mixed },
+	expectedSchedule: { type: Schema.Types.Mixed },
+	estimatedDeliveryWindow: { type: Schema.Types.Mixed },
+	// Guest access fields
+	guestEmail: { type: String, lowercase: true, index: true },
+	guestVerifiedAt: { type: Date },
+	claimedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+	accessRevokedAt: { type: Date },
 }, { timestamps: true });
 
 export const Order: Model<OrderDocument> = mongoose.models.Order || mongoose.model<OrderDocument>('Order', OrderSchema);

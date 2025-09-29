@@ -7,13 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuthStore } from "@/lib/store";
 import { useProfile } from "@/lib/profile";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Tables as DBTables, TablesInsert as DBTablesInsert } from "@/integrations/supabase/types";
 import { addressSchema } from "@/lib/validation";
+import Navigation from "@/components/Navigation";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -45,8 +45,8 @@ const Settings = () => {
       setPhone(profile.phone || "");
       setEmail(profile.email || user?.email || "");
     }
-    if (user?.user_metadata?.company_name) {
-      setCompanyName(user.user_metadata.company_name);
+    if (user?.companyName) {
+      setCompanyName(user.companyName);
     }
   }, [profile, user]);
 
@@ -54,28 +54,13 @@ const Settings = () => {
     if (!user) return;
     setSavingProfile(true);
     try {
-      // Update profile table row
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: firstName || null,
-          last_name: lastName || null,
-          phone: phone || null,
-          email: email || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-
-      // Update user metadata for company_name (non-critical)
-      if (companyName !== (user.user_metadata?.company_name || "")) {
-        const { error: metaErr } = await supabase.auth.updateUser({
-          data: { company_name: companyName },
-        });
-        if (metaErr) console.warn("Failed to update user metadata:", metaErr.message);
-      }
-
+      // Update via Node API
+      await api.patch('/profile', {
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        phone: phone || undefined,
+        companyName: companyName || undefined,
+      });
       toast({ title: "Saved", description: "Your information has been updated." });
       await refetch();
     } catch (err: any) {
@@ -116,31 +101,7 @@ const Settings = () => {
     }
     setSavingEdit(true);
     try {
-      if (addrDefaultShip) {
-        await supabase.from("addresses").update({ is_default_shipping: false }).eq("user_id", user.id);
-      }
-      if (addrDefaultBill) {
-        await supabase.from("addresses").update({ is_default_billing: false }).eq("user_id", user.id);
-      }
-      const { error } = await supabase
-        .from("addresses")
-        .update({
-          label: addrLabel || null,
-          full_name: addrFullName || null,
-          company: addrCompany || null,
-          phone: addrPhone || null,
-          address1: addr1,
-          address2: addr2 || null,
-          city: addrCity,
-          state: addrState || null,
-          postal_code: addrPostal || null,
-          country: addrCountry || "US",
-          is_default_shipping: addrDefaultShip,
-          is_default_billing: addrDefaultBill,
-        })
-        .eq("id", editingId);
-      if (error) throw error;
-      toast({ title: "Address saved" });
+      toast({ title: "Not available", description: "Address book editing will be available after migration.", variant: "destructive" });
       setEditOpen(false);
       setEditingId(null);
       resetAddressForm();
@@ -153,8 +114,21 @@ const Settings = () => {
   };
 
   // Address Book state
-  type AddressRow = DBTables<"addresses">;
-  type AddressInsert = DBTablesInsert<"addresses">;
+  type AddressRow = {
+    id: string;
+    label?: string | null;
+    full_name?: string | null;
+    company?: string | null;
+    phone?: string | null;
+    address1: string;
+    address2?: string | null;
+    city: string;
+    state?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+    is_default_shipping?: boolean | null;
+    is_default_billing?: boolean | null;
+  };
   const [addresses, setAddresses] = useState<AddressRow[] | null>(null);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [addingAddress, setAddingAddress] = useState(false);
@@ -179,15 +153,12 @@ const Settings = () => {
   const fetchAddresses = async () => {
     if (!user) return;
     setLoadingAddresses(true);
-    const { data, error } = await supabase
-      .from("addresses")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    try {
+      // Address book migration pending on Node API
+      setAddresses([]);
+    } finally {
+      setLoadingAddresses(false);
     }
-    setAddresses(data || []);
-    setLoadingAddresses(false);
   };
 
   useEffect(() => {
@@ -241,32 +212,8 @@ const Settings = () => {
       return;
     }
     setAddingAddress(true);
-    const payload: AddressInsert = {
-      user_id: user.id,
-      label: addrLabel || null,
-      full_name: addrFullName || null,
-      company: addrCompany || null,
-      phone: addrPhone || null,
-      address1: addr1,
-      address2: addr2 || null,
-      city: addrCity,
-      state: addrState || null,
-      postal_code: addrPostal || null,
-      country: addrCountry || "US",
-      is_default_shipping: addrDefaultShip,
-      is_default_billing: addrDefaultBill,
-    };
     try {
-      // If setting default, clear existing defaults first
-      if (addrDefaultShip) {
-        await supabase.from("addresses").update({ is_default_shipping: false }).eq("user_id", user.id);
-      }
-      if (addrDefaultBill) {
-        await supabase.from("addresses").update({ is_default_billing: false }).eq("user_id", user.id);
-      }
-      const { error } = await supabase.from("addresses").insert(payload);
-      if (error) throw error;
-      toast({ title: "Address saved" });
+      toast({ title: "Not available", description: "Address book will be available after migration.", variant: "destructive" });
       resetAddressForm();
       setAddOpen(false);
       await fetchAddresses();
@@ -279,9 +226,7 @@ const Settings = () => {
 
   const handleDeleteAddress = async (id: string) => {
     try {
-      const { error } = await supabase.from("addresses").delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Address removed" });
+      toast({ title: "Not available", description: "Address removal will be available after migration.", variant: "destructive" });
       await fetchAddresses();
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to delete address", variant: "destructive" });
@@ -291,14 +236,7 @@ const Settings = () => {
   const handleSetDefault = async (id: string, type: "shipping" | "billing") => {
     if (!user) return;
     try {
-      if (type === "shipping") {
-        await supabase.from("addresses").update({ is_default_shipping: false }).eq("user_id", user.id);
-        await supabase.from("addresses").update({ is_default_shipping: true }).eq("id", id);
-      } else {
-        await supabase.from("addresses").update({ is_default_billing: false }).eq("user_id", user.id);
-        await supabase.from("addresses").update({ is_default_billing: true }).eq("id", id);
-      }
-      toast({ title: "Default set" });
+      toast({ title: "Not available", description: "Setting defaults will be available after migration.", variant: "destructive" });
       await fetchAddresses();
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to update default", variant: "destructive" });
@@ -306,21 +244,28 @@ const Settings = () => {
   };
 
   // Billing History
-  type PaymentRow = DBTables<"payments"> & { orders?: { order_number: string | null } | null };
+  type PaymentRow = {
+    id: string;
+    created_at: string;
+    phase?: string | null;
+    amount_cents?: number | null;
+    currency?: string | null;
+    status?: string | null;
+    paid_at?: string | null;
+    order_id: string;
+    orders?: { order_number: string | null } | null;
+  };
   const [payments, setPayments] = useState<PaymentRow[] | null>(null);
   const [loadingPayments, setLoadingPayments] = useState(false);
 
   const fetchPayments = async () => {
     setLoadingPayments(true);
-    const { data, error } = await supabase
-      .from("payments")
-      .select("id,created_at,phase,amount_cents,currency,status,paid_at,order_id,orders(order_number)")
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    try {
+      // Payments history UI pending Node endpoint; showing empty list
+      setPayments([]);
+    } finally {
+      setLoadingPayments(false);
     }
-    setPayments(data as PaymentRow[] | null);
-    setLoadingPayments(false);
   };
 
   useEffect(() => {
@@ -346,14 +291,7 @@ const Settings = () => {
     }
     setSavingEmail(true);
     try {
-      const { error } = await supabase.auth.updateUser({ email });
-      if (error) throw error;
-      toast({
-        title: "Check your email",
-        description: "We sent a confirmation link to verify your new email.",
-      });
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to update email.", variant: "destructive" });
+      toast({ title: "Not available", description: "Email changes are handled by support during migration.", variant: "destructive" });
     } finally {
       setSavingEmail(false);
     }
@@ -374,21 +312,17 @@ const Settings = () => {
     }
     setSavingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      setNewPassword("");
-      setConfirmPassword("");
-      toast({ title: "Password changed", description: "Your new password is now active." });
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to update password.", variant: "destructive" });
+      toast({ title: "Not available", description: "Password change will be available soon.", variant: "destructive" });
     } finally {
       setSavingPassword(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-6 py-10">
+    <>
+      <Navigation />
+      <div className="min-h-screen bg-background">
+        <div className="max-w-4xl mx-auto px-6 py-10">
         <h1 className="text-3xl font-semibold tracking-tight mb-6">Account settings</h1>
 
         <Card className="mb-8">
@@ -707,8 +641,9 @@ const Settings = () => {
             Questions? Email us at <a className="underline" href="mailto:support@example.com">support@example.com</a>
           </p>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

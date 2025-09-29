@@ -1,19 +1,12 @@
 // Order Flow Types - Complete type definitions for the new order system
 
-export type OrderStatus = 
-  | 'draft'
-  | 'deposit_pending'
-  | 'deposit_paid'
+// Server canonical 5-step statuses
+export type OrderStatus =
+  | 'submitted'
+  | 'paid'
   | 'in_production'
-  | 'quality_check'
-  | 'balance_pending'
-  | 'balance_paid'
-  | 'ready_to_ship'
-  | 'shipped'
-  | 'delivered'
-  | 'completed'
-  | 'cancelled'
-  | 'refunded';
+  | 'shipping'
+  | 'delivered';
 
 export type PaymentPhase = 'deposit' | 'balance' | 'full' | 'refund';
 
@@ -32,8 +25,6 @@ export interface PrintLocation {
   id: string;
   location: 'front' | 'back' | 'left_sleeve' | 'right_sleeve' | 'collar' | 'tag';
   method: 'screen-print' | 'embroidery' | 'vinyl' | 'dtg' | 'dtf' | 'heat_transfer';
-  colors: string[];
-  colorCount: number;
   size?: {
     widthIn: number;
     heightIn: number;
@@ -62,6 +53,7 @@ export interface Order {
   // Customer info
   user_id: string;
   company_id?: string;
+  guest_email?: string; // guest access email if no account
   
   // Product details
   product_id?: string;
@@ -89,6 +81,8 @@ export interface Order {
   balance_amount: number;
   deposit_paid_at?: string;
   balance_paid_at?: string;
+  shipping_paid_at?: string;
+  shipping_fee_cents?: number;
   
   // Shipping
   shipping_address?: {
@@ -111,7 +105,14 @@ export interface Order {
   production_notes?: string;
   customer_notes?: string;
   admin_notes?: string;
-  
+  // Design preview mockups
+  mockup_images?: {
+    front?: string;
+    back?: string;
+    sleeve?: string;
+    composite?: string;
+  };
+
   // Stripe integration
   stripe_deposit_payment_intent?: string;
   stripe_balance_payment_intent?: string;

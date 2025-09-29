@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { PricingRule } from '../models/PricingRule';
 
 export const pricingRouter = Router();
-
 pricingRouter.get('/', async (req, res, next) => {
 	try {
 		const rules = await PricingRule.find({ active: true }).sort({ productType: 1, quantityMin: 1 }).lean();

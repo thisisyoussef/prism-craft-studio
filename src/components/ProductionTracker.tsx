@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Separator } from '@/components/ui/separator';
 import { Upload, Camera, Clock, CheckCircle, AlertCircle, Truck } from 'lucide-react';
 import { format } from 'date-fns';
-import { OrderService } from '@/lib/services/orderService';
+import { OrderService } from '@/lib/services/orderServiceNode';
 import { useToast } from '@/hooks/use-toast';
 import type { Order, ProductionUpdate, OrderStatus, CreateProductionUpdatePayload } from '@/lib/types/order';
 
@@ -19,12 +19,9 @@ interface ProductionTrackerProps {
 }
 
 const productionStages: { stage: OrderStatus; label: string; icon: React.ReactNode; color: string }[] = [
-  { stage: 'deposit_paid', label: 'Design Review', icon: <AlertCircle className="w-4 h-4" />, color: 'bg-blue-100 text-blue-800' },
+  { stage: 'paid', label: 'Design Review', icon: <AlertCircle className="w-4 h-4" />, color: 'bg-blue-100 text-blue-800' },
   { stage: 'in_production', label: 'In Production', icon: <Clock className="w-4 h-4" />, color: 'bg-yellow-100 text-yellow-800' },
-  { stage: 'quality_check', label: 'Quality Check', icon: <CheckCircle className="w-4 h-4" />, color: 'bg-purple-100 text-purple-800' },
-  { stage: 'balance_pending', label: 'Ready for Balance', icon: <AlertCircle className="w-4 h-4" />, color: 'bg-orange-100 text-orange-800' },
-  { stage: 'ready_to_ship', label: 'Ready to Ship', icon: <Truck className="w-4 h-4" />, color: 'bg-green-100 text-green-800' },
-  { stage: 'shipped', label: 'Shipped', icon: <Truck className="w-4 h-4" />, color: 'bg-green-100 text-green-800' },
+  { stage: 'shipping', label: 'Shipping', icon: <Truck className="w-4 h-4" />, color: 'bg-green-100 text-green-800' },
   { stage: 'delivered', label: 'Delivered', icon: <CheckCircle className="w-4 h-4" />, color: 'bg-green-100 text-green-800' },
 ];
 
@@ -46,8 +43,7 @@ export function ProductionTracker({ order, onUpdate }: ProductionTrackerProps) {
   const loadProductionUpdates = async () => {
     try {
       setLoading(true);
-      const orderService = new OrderService();
-      const productionUpdates = await orderService.getProductionUpdates(order.id);
+      const productionUpdates = await OrderService.getOrderProductionUpdates(order.id);
       setUpdates(productionUpdates);
     } catch (error) {
       console.error('Failed to load production updates:', error);
@@ -72,14 +68,14 @@ export function ProductionTracker({ order, onUpdate }: ProductionTrackerProps) {
     }
 
     try {
-      const orderService = new OrderService();
-      await orderService.createProductionUpdate({
+      await OrderService.createProductionUpdate({
         order_id: order.id,
         stage: newUpdate.stage!,
         status: newUpdate.status!,
+        title: `${String(newUpdate.stage).replace(/_/g, ' ')} update`,
         description: newUpdate.description,
         visible_to_customer: newUpdate.visible_to_customer || false,
-        photos: newUpdate.photos || null
+        photos: (newUpdate as any).photos || []
       });
 
       setShowAddUpdate(false);
@@ -181,7 +177,7 @@ export function ProductionTracker({ order, onUpdate }: ProductionTrackerProps) {
           ) : (
             <div className="space-y-4">
               {updates.map((update) => {
-                const stageInfo = getStageInfo(update.stage);
+                const stageInfo = getStageInfo(update.stage as OrderStatus);
                 return (
                   <div key={update.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between mb-2">

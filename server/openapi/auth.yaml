@@ -1,0 +1,302 @@
+tags:
+  - name: Auth
+    description: Authentication and user management
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRegisterRequest'
+            example:
+              email: buyer@example.com
+              password: secret12
+              firstName: Ahmed
+              lastName: Ali
+              companyName: City Youth League
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: User registered successfully
+                user:
+                  id: usr_12345
+                  email: buyer@example.com
+                  firstName: Ahmed
+                  lastName: Ali
+                  role: customer
+                  isActive: true
+                  createdAt: "2025-09-01T14:12:00.000Z"
+                  updatedAt: "2025-09-01T14:12:00.000Z"
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+            example:
+              email: buyer@example.com
+              password: secret12
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: Login successful
+                user:
+                  id: usr_12345
+                  email: buyer@example.com
+                  firstName: Ahmed
+                  lastName: Ali
+                  role: customer
+                  isActive: true
+                  createdAt: "2025-09-01T14:12:00.000Z"
+                  updatedAt: "2025-09-01T14:12:00.000Z"
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/profile:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AuthUser'
+              example:
+                user:
+                  id: usr_12345
+                  email: buyer@example.com
+                  firstName: Ahmed
+                  lastName: Ali
+                  role: customer
+                  isActive: true
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [Auth]
+      summary: Update current user profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName: { type: string }
+                lastName: { type: string }
+                companyName: { type: string }
+                phone: { type: string }
+                address: { $ref: '#/components/schemas/Address' }
+            example:
+              firstName: Ahmed
+              lastName: Ali
+              phone: "+1-313-555-0123"
+              address:
+                street: 123 Main St
+                city: Springfield
+                state: IL
+                zipCode: "62704"
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  user:
+                    $ref: '#/components/schemas/AuthUser'
+              example:
+                message: Profile updated successfully
+                user:
+                  id: usr_12345
+                  email: buyer@example.com
+                  firstName: Ahmed
+                  lastName: Ali
+                  role: customer
+                  phone: "+1-313-555-0123"
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/password:
+    put:
+      tags: [Auth]
+      summary: Change password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              currentPassword: secret12
+              newPassword: strongerpass
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/users:
+    get:
+      tags: [Auth]
+      summary: List users (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: role
+          schema: { type: string, enum: [admin, customer] }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        '200':
+          description: Users with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuthUser' }
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+              example:
+                users:
+                  - id: usr_12345
+                    email: buyer@example.com
+                    firstName: Ahmed
+                    lastName: Ali
+                    role: customer
+                    isActive: true
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  pages: 1
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/auth/admin:
+    post:
+      tags: [Auth]
+      summary: Create admin user (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, firstName, lastName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6 }
+                firstName: { type: string }
+                lastName: { type: string }
+            example:
+              email: admin2@example.com
+              password: strongpass
+              firstName: Admin
+              lastName: Two
+      responses:
+        '201':
+          description: Admin created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  user: { $ref: '#/components/schemas/AuthUser' }
+              example:
+                message: Admin user created successfully
+                user:
+                  id: usr_admin2
+                  email: admin2@example.com
+                  firstName: Admin
+                  lastName: Two
+                  role: admin
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/auth/users/{userId}/toggle-status:
+    put:
+      tags: [Auth]
+      summary: Toggle user active status (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Status toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  user: { $ref: '#/components/schemas/AuthUser' }
+              example:
+                message: User deactivated successfully
+                user:
+                  id: usr_12345
+                  email: buyer@example.com
+                  firstName: Ahmed
+                  lastName: Ali
+                  role: customer
+                  isActive: false
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }

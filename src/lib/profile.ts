@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
 export type AppRole = "admin" | "moderator" | "user";
@@ -26,13 +26,23 @@ export function useProfile() {
     enabled: !!uid,
     queryFn: async (): Promise<ProfileRow | null> => {
       if (!uid) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, user_id, company_id, first_name, last_name, email, phone, role, created_at, updated_at")
-        .eq("user_id", uid)
-        .maybeSingle();
-      if (error) throw error;
-      return data as ProfileRow | null;
+      const { data } = await api.get('/profile');
+      if (!data) return null;
+      // Map server profile (camelCase) to existing ProfileRow (snake_case)
+      const p = data as any;
+      const mapped: ProfileRow = {
+        id: p.id,
+        user_id: p.userId,
+        company_id: p.companyId ?? null,
+        first_name: p.firstName ?? null,
+        last_name: p.lastName ?? null,
+        email: p.email ?? null,
+        phone: p.phone ?? null,
+        role: p.role,
+        created_at: p.createdAt,
+        updated_at: p.updatedAt,
+      };
+      return mapped;
     },
     staleTime: 60_000,
   });

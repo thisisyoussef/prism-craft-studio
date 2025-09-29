@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useProfile } from "@/lib/profile";
+import { useAuthStore } from "@/lib/store";
+import { createProduct as apiCreateProduct, uploadFile } from "@/lib/services/productService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft, Plus, X, Upload } from "lucide-react";
 import { z } from "zod";
+import Navigation from "@/components/Navigation";
 
 const CATEGORIES = [
   "T-Shirts",
@@ -63,11 +64,11 @@ interface ColorVariant {
 export default function AdminNewProduct() {
   const navigate = useNavigate();
   const location = useLocation() as { state?: { from?: string } };
-  const { data: profile, isLoading: loadingProfile } = useProfile();
+  const { user } = useAuthStore();
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = user?.role === "admin";
 
   // Form state
   const [formData, setFormData] = useState({
@@ -97,98 +98,40 @@ export default function AdminNewProduct() {
       const { product, sizes, variants, imageFile } = data;
 
       // Validate product data
-      const validatedProduct = ProductSchema.parse(product);
+      const validated = ProductSchema.parse(product);
 
-      // Create the product first
-      const { data: newProduct, error: productError } = await supabase
-        .from("products")
-        .insert({
-          name: validatedProduct.name,
-          description: validatedProduct.description || null,
-          category: validatedProduct.category,
-          base_price: validatedProduct.base_price,
-          available_sizes: sizes,
-          available_colors: variants.map(v => v.name),
-          customization_options: {
-            moq: validatedProduct.moq || 50,
-            active: true
-          }
-        })
-        .select("id")
-        .single();
-
-      if (productError) throw productError;
-
-      const productId = newProduct.id;
-
-      // Upload product image if provided
-      let imageUrl: string | null = null;
+      // Upload image (if any) via backend
+      let imageUrl: string | undefined;
       if (imageFile) {
-        const ext = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const path = `products/${productId}/cover/${Date.now()}.${ext}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(path, imageFile, { 
-            cacheControl: '3600', 
-            upsert: true, 
-            contentType: imageFile.type 
-          });
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(path);
-
-        imageUrl = publicUrlData.publicUrl;
-
-        // Update product with image URL
-        const { error: updateError } = await supabase
-          .from('products')
-          .update({ image_url: imageUrl })
-          .eq('id', productId);
-
-        if (updateError) throw updateError;
+        const { fileUrl } = await uploadFile(imageFile, { filePurpose: 'reference' });
+        imageUrl = fileUrl;
       }
 
-      // Create product variants
-      if (variants.length > 0) {
-        const variantInserts = variants.map(variant => ({
-          product_id: productId,
-          color_name: variant.name,
-          color_hex: variant.hex,
-          stock: variant.stock,
-          price: variant.price || null,
-          image_url: imageUrl, // Use product image as default
-          front_image_url: null,
-          back_image_url: null,
-          sleeve_image_url: null,
-          active: true
-        }));
+      // Create product via API
+      const created = await apiCreateProduct({
+        name: validated.name,
+        category: validated.category,
+        basePrice: validated.base_price,
+        description: validated.description || undefined,
+        imageUrl,
+        sizes,
+        colors: variants.map(v => v.name),
+        moq: validated.moq || 50,
+        specifications: {},
+        active: true,
+      });
 
-        const { error: variantError } = await (supabase as any)
-          .from('product_variants')
-          .insert(variantInserts);
-
-        if (variantError) throw variantError;
-      }
-
-      return { productId, imageUrl };
+      return { productId: created.id, imageUrl: created.imageUrl || imageUrl || null };
     },
-    onSuccess: ({ productId }) => {
+    onSuccess: () => {
       toast({
         title: "Product created successfully!",
         description: "The new product has been added to your inventory."
       });
-      
-      // Invalidate relevant queries
       qc.invalidateQueries({ queryKey: ["admin-inventory"] });
       qc.invalidateQueries({ queryKey: ["catalog-products"] });
       qc.invalidateQueries({ queryKey: ["sample-products"] });
-      
-      // Navigate to the product editor
-      navigate(`/admin/inventory/${productId}`);
+      navigate(`/admin/inventory`);
     },
     onError: (error: any) => {
       toast({
@@ -281,26 +224,23 @@ export default function AdminNewProduct() {
     }
   };
 
-  if (loadingProfile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-muted-foreground">You do not have access to this page.</p>
-        <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
-      </div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-muted-foreground">You do not have access to this page.</p>
+          <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-4xl mx-auto px-6 py-8">
+    <>
+      <Navigation />
+      <div className="min-h-screen">
+        <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
           <Button
             variant="ghost"
@@ -621,7 +561,8 @@ export default function AdminNewProduct() {
             </Button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

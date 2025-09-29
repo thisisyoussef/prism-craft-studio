@@ -9,8 +9,9 @@ import { Slider } from '@/components/ui/slider'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { usePricingStore, type PrintPlacement, type PrintLocation, type PrintMethod } from '@/lib/store'
 import { Upload, FileText, Images, Plus, ZoomIn, ZoomOut } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import GarmentMockup, { type GarmentType } from './GarmentMockups'
+import { listProducts, type ApiProduct } from '@/lib/services/productService'
+import { listByProduct as listVariantsByProduct, type ApiVariant } from '@/lib/services/variantService'
 
 interface CustomizerStep1Props {
   onNext: () => void
@@ -86,21 +87,20 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
   const lastMouse = useRef<{ x: number; y: number } | null>(null)
   const rafId = useRef<number | null>(null)
   const pendingEvent = useRef<{ x: number; y: number } | null>(null)
+  // Track the active pointer to avoid multi-touch conflicts
+  const activePointerId = useRef<number | null>(null)
   const [artworkAspect, setArtworkAspect] = useState<Record<string, number>>({})
   const urlCache = useRef<Record<string, string>>({})
 
-  // Products and Variants from Supabase
-  interface ProductRow { id: string; name: string; base_price: number | null; category: string | null }
+  // Products and Variants from Node API
+  type ProductRow = ApiProduct
   const [products, setProducts] = useState<ProductRow[]>([])
 
   useEffect(() => {
     (async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from('products')
-          .select('id, name, base_price, category')
-          .order('name', { ascending: true })
-        if (!error && Array.isArray(data)) setProducts(data as ProductRow[])
+        const items = await listProducts()
+        setProducts((items || []).filter(p => p.active !== false))
       } catch {}
     })()
   }, [])
@@ -130,21 +130,25 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
     if (!selectedProduct) { setVariants([]); return }
     (async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from('product_variants')
-          .select('id, color_name, color_hex, front_image_url, back_image_url, sleeve_image_url, active')
-          .eq('product_id', selectedProduct)
-        if (!error && Array.isArray(data)) {
-          const vs = data as Variant[]
-          setVariants(vs)
-          const names = vs.map(v => v.color_name)
-          if (!names.includes(selectedBaseColor) && names.length > 0) {
-            setSelectedBaseColor(names[0]!)
-          }
+        const vs = await listVariantsByProduct(selectedProduct)
+        const mapped: Variant[] = (vs || []).map((v: ApiVariant) => ({
+          id: v.id,
+          product_id: v.productId,
+          color_name: v.colorName,
+          color_hex: v.colorHex,
+          front_image_url: v.frontImageUrl ?? null,
+          back_image_url: v.backImageUrl ?? null,
+          sleeve_image_url: v.sleeveImageUrl ?? null,
+          active: v.active,
+        }))
+        setVariants(mapped)
+        const names = mapped.map(v => v.color_name)
+        if (!names.includes(selectedBaseColor) && names.length > 0) {
+          setSelectedBaseColor(names[0]!)
         }
       } catch {}
     })()
-  }, [selectedProduct, selectedBaseColor])
+  }, [selectedProduct])
 
   const selectedVariant = useMemo(() => {
     const name = (selectedBaseColor || '').toLowerCase()
@@ -153,7 +157,7 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
 
   const productMap = useMemo(() => {
     const map: Record<string, { name: string; basePrice: number; category: string | null }> = {}
-    products.forEach(p => { map[p.id] = { name: p.name, basePrice: p.base_price ?? 0, category: p.category } })
+    products.forEach(p => { map[p.id] = { name: p.name, basePrice: p.basePrice ?? 0, category: p.category } })
     return map
   }, [products])
 
@@ -194,9 +198,18 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
   }
 
 
+  const allActiveHaveArtwork = useMemo(() => {
+    const active = prints.filter(p => p.active !== false)
+    if (active.length === 0) return false
+    return active.every(p => {
+      const f = Array.isArray(p.artworkFiles) && p.artworkFiles[0]
+      return !!f
+    })
+  }, [prints])
+
   const isDesignComplete = useMemo(() => {
-    return Boolean(selectedProduct) && prints.length > 0
-  }, [selectedProduct, prints])
+    return Boolean(selectedProduct) && prints.length > 0 && allActiveHaveArtwork
+  }, [selectedProduct, prints, allActiveHaveArtwork])
 
   // Cleanup blob URLs - only cleanup on unmount to prevent premature revocation
   useEffect(() => {
@@ -250,7 +263,7 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
               <SelectContent>
                 {products.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name} {typeof p.base_price === 'number' ? `- $${p.base_price}` : ''}
+                    {p.name} {typeof p.basePrice === 'number' ? `- $${p.basePrice}` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -325,6 +338,9 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
                     />
                   </div>
                 ))}
+                {prints.length > 0 && !allActiveHaveArtwork && (
+                  <div className="text-xs text-destructive">Upload artwork to each print placement to continue</div>
+                )}
               </div>
             )}
           </div>
@@ -347,8 +363,9 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
             <div className="bg-muted/30 rounded-md">
               <AspectRatio ratio={1}>
                 <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                  <div ref={viewerRef} className="relative select-none" style={{ transform: `scale(${zoom})` }}
-                    onMouseMove={(e) => {
+                  <div ref={viewerRef} className="relative select-none" style={{ transform: `scale(${zoom})`, touchAction: 'none' }}
+                    onPointerMove={(e) => {
+                      if (activePointerId.current !== null && e.pointerId !== activePointerId.current) return
                       // store latest mouse and schedule one RAF update to reduce jitter
                       pendingEvent.current = { x: e.clientX, y: e.clientY }
                       if (rafId.current != null) return
@@ -420,8 +437,15 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
                         }
                       })
                     }}
-                    onMouseUp={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
-                    onMouseLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
+                    onPointerUp={() => {
+                      setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null
+                      if (viewerRef.current && activePointerId.current != null) {
+                        try { viewerRef.current.releasePointerCapture(activePointerId.current) } catch {}
+                      }
+                      activePointerId.current = null
+                    }}
+                    onPointerLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null; activePointerId.current = null }}
+                    onPointerCancel={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null; activePointerId.current = null }}
                   >
                     <GarmentMockup
                       type={garmentType}
@@ -437,8 +461,10 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
                         key={p.id}
                         className="absolute text-[10px] text-foreground cursor-move group"
                         style={overlayStyleFor(p, bounds)}
-                        onMouseDown={(e) => {
+                        onPointerDown={(e) => {
                           e.preventDefault()
+                          try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
+                          activePointerId.current = e.pointerId
                           setDragging({ id: p.id })
                         }}
                         onDragOver={(e) => { e.preventDefault() }}
@@ -492,14 +518,14 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
                                     <div
                                       key={corner}
                                       className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                      onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                     />
                                   ))}
                                   {/* Rotation handle and angle badge (top-center) */}
                                   <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                   <div
                                     className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setRotating({ id: p.id }) }}
                                     title="Rotate"
                                   />
                                   <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -529,13 +555,13 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
                                     <div
                                       key={corner}
                                       className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                      onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                     />
                                   ))}
                                   <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                   <div
                                     className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setRotating({ id: p.id }) }}
                                     title="Rotate"
                                   />
                                   <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -551,13 +577,13 @@ const CustomizerStep1 = ({ onNext, onDataChange, designData }: CustomizerStep1Pr
                                   <div
                                     key={corner}
                                     className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                   />
                                 ))}
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                 <div
                                   className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setRotating({ id: p.id }) }}
                                   title="Rotate"
                                 />
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>

@@ -3,13 +3,16 @@ import { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useProfile } from "@/lib/profile";
+import { getProduct as apiGetProduct, updateProduct as apiUpdateProduct, uploadFile, listProducts } from "@/lib/services/productService";
+import { listByProduct as listVariantsByProduct, createVariant as apiCreateVariant, updateVariant as apiUpdateVariant, deleteVariant as apiDeleteVariant } from "@/lib/services/variantService";
+import { useAuthStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, ArrowLeft, Upload, Download, Copy } from "lucide-react";
+import Navigation from "@/components/Navigation";
 
 interface Product {
   id: string;
@@ -89,26 +92,52 @@ const AdminProductEditor = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const location = useLocation() as { state?: { from?: string } };
-  const { data: profile, isLoading: loadingProfile } = useProfile();
+  const { user } = useAuthStore();
   const { toast } = useToast();
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = user?.role === "admin";
   const isNewProduct = productId === "new";
 
   const { data: product, isLoading: loadingProduct } = useQuery<Product | null>({
     queryKey: ["product", productId],
     queryFn: async () => {
       if (!productId || isNewProduct) return null;
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, description, category, base_price, image_url, available_sizes, customization_options")
-        .eq("id", productId)
-        .maybeSingle();
-      if (error) throw error;
-      return data as Product | null;
+      const p = await apiGetProduct(productId);
+      const mapped: Product = {
+        id: p.id,
+        name: p.name,
+        description: (p.description as any) ?? null,
+        category: (p.category as any) ?? null,
+        base_price: (p.basePrice as any) ?? null,
+        image_url: (p.imageUrl as any) ?? null,
+        available_sizes: (p.sizes as any) ?? [],
+        customization_options: (p.specifications as any) ?? {},
+      };
+      return mapped;
     },
     enabled: !!productId && !isNewProduct,
   });
+
+  // Distinct categories derived from all products (Phase 1: no dedicated endpoint)
+  const { data: categories } = useQuery<string[]>({
+    queryKey: ["product-categories"],
+    queryFn: async () => {
+      const all = await listProducts();
+      return Array.from(new Set((all || []).map(p => (p.category || '').trim()).filter(Boolean))).sort();
+    },
+  });
+
+  // Category editor state for existing product
+  const [catMode, setCatMode] = useState<'select'|'custom'>('select');
+  const [catValue, setCatValue] = useState<string>('');
+  const [catCustom, setCatCustom] = useState<string>('');
+  useEffect(() => {
+    const current = (product?.category || '').trim();
+    if (!current) { setCatMode('select'); setCatValue(''); setCatCustom(''); return; }
+    const exists = (categories || []).some(c => c.toLowerCase() === current.toLowerCase());
+    if (exists) { setCatMode('select'); setCatValue(current); setCatCustom(''); }
+    else { setCatMode('custom'); setCatValue(''); setCatCustom(current); }
+  }, [product?.category, categories]);
 
   // Local cover preview that updates immediately upon upload
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -153,17 +182,24 @@ const AdminProductEditor = () => {
   // Variants query (moved up to avoid TDZ when used by drafts below)
   const { data: variants, isLoading: loadingVariants } = useQuery<Variant[]>({
     queryKey: ["product-variants", productId],
+    enabled: !!productId && !isNewProduct,
     queryFn: async () => {
       if (!productId || isNewProduct) return [] as Variant[];
-      const { data, error } = await (supabase as any)
-        .from("product_variants")
-        .select("id, product_id, color_name, color_hex, stock, price, image_url, front_image_url, back_image_url, sleeve_image_url, active")
-        .eq("product_id", productId)
-        .order("color_name", { ascending: true });
-      if (error) throw error;
-      return (data as unknown as Variant[]) || [];
+      const vs = await listVariantsByProduct(productId);
+      return (vs || []).map(v => ({
+        id: v.id,
+        product_id: v.productId,
+        color_name: v.colorName,
+        color_hex: v.colorHex,
+        stock: v.stock,
+        price: v.price ?? null,
+        image_url: v.imageUrl ?? null,
+        front_image_url: v.frontImageUrl ?? null,
+        back_image_url: v.backImageUrl ?? null,
+        sleeve_image_url: v.sleeveImageUrl ?? null,
+        active: v.active,
+      } as Variant));
     },
-    enabled: !!productId && !isNewProduct,
   });
 
   // Local editable drafts of variants
@@ -196,25 +232,25 @@ const AdminProductEditor = () => {
   const uploadImage = useMutation({
     mutationFn: async ({ v, file, field }: { v: Variant; file: File; field: 'image_url'|'front_image_url'|'back_image_url'|'sleeve_image_url' }) => {
       if (!productId) throw new Error('No product id');
-      // Standardize image: resize & convert to webp
       const processed = await preprocessImageToWebP(file);
-      const ext = 'webp';
-      const safeField = String(field);
-      const variantId = (typeof v.id === 'string' && !v.id.startsWith('temp-')) ? v.id : 'temp';
-      const path = `${productId}/${variantId}/${safeField}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('variant-images')
-        .upload(path, processed, { cacheControl: '3600', upsert: true, contentType: 'image/webp' });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from('variant-images').getPublicUrl(path);
-      const publicUrl: string | null = pub?.publicUrl || null;
-      const busted: string | null = publicUrl ? `${publicUrl}?v=${Date.now()}` : null;
-      return { field, publicUrl: busted } as const;
+      const { fileUrl } = await uploadFile(processed, { filePurpose: 'reference', productId });
+      // If variant already exists in DB, persist change immediately
+      const isExisting = typeof v.id === 'string' && !v.id.startsWith('temp-');
+      if (isExisting) {
+        const patch: any = {};
+        if (field === 'image_url') patch.imageUrl = fileUrl;
+        if (field === 'front_image_url') patch.frontImageUrl = fileUrl;
+        if (field === 'back_image_url') patch.backImageUrl = fileUrl;
+        if (field === 'sleeve_image_url') patch.sleeveImageUrl = fileUrl;
+        await apiUpdateVariant(v.id, patch);
+      }
+      return { field, publicUrl: fileUrl } as const;
     },
     onSuccess: ({ field, publicUrl }) => {
-      // Update drafts immediately; persistence occurs on Apply/Save
-      setDrafts(prev => prev.map(it => ({ ...it, [field]: publicUrl } as Variant)));
-      toast({ title: 'Image uploaded', description: 'Preview updated. Remember to Apply/Save to persist.' });
+      const busted = publicUrl ? `${publicUrl}?v=${Date.now()}` : publicUrl;
+      setDrafts(prev => prev.map(it => ({ ...it, [field]: busted } as Variant)));
+      toast({ title: 'Image uploaded', description: 'Preview updated.' });
+      qc.invalidateQueries({ queryKey: ["product-variants", productId] });
     },
     onError: (err: unknown) => toast({ title: 'Upload failed', description: String((err as Error)?.message || err), variant: 'destructive' as const }),
   });
@@ -320,54 +356,21 @@ const AdminProductEditor = () => {
   const uploadProductImage = useMutation({
     mutationFn: async (file: File) => {
       if (!productId && !isNewProduct) throw new Error('No product id');
-      // Standardize image: resize & convert to webp
       const processed = await preprocessImageToWebP(file);
-      const ext = 'webp';
-      const tempId = isNewProduct ? 'temp' : productId;
-      const path = `products/${tempId}/cover/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('product-images')
-        .upload(path, processed, { cacheControl: '3600', upsert: true, contentType: 'image/webp' });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
-      const publicUrl: string | null = pub?.publicUrl || null;
-      const busted: string | null = publicUrl ? `${publicUrl}?v=${Date.now()}` : null;
-      
-      if (isNewProduct) {
-        // For new products, just store the URL locally until product is created
-        setCoverPreview(busted);
-        return busted;
-      } else {
-        // For existing products, update the database
-        const { error: updErr } = await supabase
-          .from('products')
-          .update({ image_url: busted })
-          .eq('id', productId);
-        if (updErr) throw updErr;
-        return busted;
+      const { fileUrl } = await uploadFile(processed, { filePurpose: 'reference', productId: productId || undefined });
+      if (!isNewProduct && productId) {
+        await apiUpdateProduct(productId, { imageUrl: fileUrl } as any);
       }
+      return fileUrl as string;
     },
-    onSuccess: (publicUrl: string | null) => {
-      // Optimistically update cache so preview swaps instantly
+    onSuccess: (publicUrl: string) => {
       if (productId) {
         qc.setQueryData(["product", productId], (old: unknown) => (old && typeof old === 'object') ? { ...(old as any), image_url: publicUrl } : old);
       }
-      // Also set immediate local preview in case cache object is null or refetch lags
       setCoverPreview(publicUrl ?? null);
       qc.invalidateQueries({ queryKey: ["product", productId] });
-      // Refresh catalog/product lists that show the cover image
       qc.invalidateQueries({ queryKey: ["catalog-products"] });
       qc.invalidateQueries({ queryKey: ["sample-products"] });
-      // Also refresh any views that now derive cover from variants
-      qc.invalidateQueries({ queryKey: ["catalog-variants"] });
-      qc.invalidateQueries({ predicate: (q) => JSON.stringify(q.queryKey || "").includes("sample-variants") });
-      // Admin inventory list uses an object in the key; use predicate to match
-      qc.invalidateQueries({
-        predicate: (q) => {
-          const keyStr = JSON.stringify(q.queryKey || "");
-          return keyStr.includes("admin-inventory") || keyStr.includes("products") || keyStr.includes("catalog") || keyStr.includes("variants");
-        },
-      });
       toast({ title: 'Product image uploaded', description: 'Cover image updated.' });
     },
     onError: (err: unknown) => toast({ title: 'Upload failed', description: String((err as Error)?.message || err), variant: 'destructive' as const }),
@@ -392,27 +395,39 @@ const AdminProductEditor = () => {
 
       if (toUpdate.length) {
         await Promise.all(
-          toUpdate.map(u => (supabase as any)
-            .from('product_variants')
-            .update({
-              color_name: u.color_name,
-              color_hex: u.color_hex,
+          toUpdate.map(async (u) => {
+            const patch: any = {
+              colorName: u.color_name,
+              colorHex: u.color_hex,
               stock: u.stock,
               price: u.price,
-              image_url: u.image_url,
-              front_image_url: u.front_image_url,
-              back_image_url: u.back_image_url,
-              sleeve_image_url: u.sleeve_image_url,
+              imageUrl: u.image_url,
+              frontImageUrl: u.front_image_url,
+              backImageUrl: u.back_image_url,
+              sleeveImageUrl: u.sleeve_image_url,
               active: u.active,
-            })
-            .eq('id', u.id as string))
+            };
+            await apiUpdateVariant(u.id as string, patch);
+          })
         );
       }
       if (toInsert.length) {
-        const { error } = await (supabase as any)
-          .from('product_variants')
-          .insert(toInsert);
-        if (error) throw error;
+        await Promise.all(
+          toInsert.map(async (u) => {
+            const payload: any = {
+              colorName: u.color_name,
+              colorHex: u.color_hex,
+              stock: u.stock,
+              price: u.price,
+              imageUrl: u.image_url,
+              frontImageUrl: u.front_image_url,
+              backImageUrl: u.back_image_url,
+              sleeveImageUrl: u.sleeve_image_url,
+              active: u.active,
+            };
+            await apiCreateVariant(productId!, payload);
+          })
+        );
       }
     },
     onSuccess: () => {
@@ -489,11 +504,7 @@ const AdminProductEditor = () => {
 
   const deleteVariant = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any)
-        .from("product_variants")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
+      await apiDeleteVariant(id);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["product-variants", productId] });
@@ -504,29 +515,38 @@ const AdminProductEditor = () => {
     },
   });
 
-  if (loadingProfile || loadingProduct) {
+  if (loadingProduct) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      </>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-muted-foreground">You do not have access to this page.</p>
-        <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
-      </div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-muted-foreground">You do not have access to this page.</p>
+          <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
+        </div>
+      </>
     );
   }
 
   if (!product && !isNewProduct) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-muted-foreground">Product not found.</p>
-        <Button onClick={() => navigate(location.state?.from || "/admin/inventory", { replace: true })}>Back</Button>
-      </div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-muted-foreground">Product not found.</p>
+          <Button onClick={() => navigate(location.state?.from || "/admin/inventory", { replace: true })}>Back</Button>
+        </div>
+      </>
     );
   }
 
@@ -562,8 +582,10 @@ const AdminProductEditor = () => {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+    <>
+      <Navigation />
+      <div className="min-h-screen">
+        <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
           <Button
             variant="ghost"
@@ -581,6 +603,65 @@ const AdminProductEditor = () => {
             <h1 className="text-2xl font-semibold">{isNewProduct ? 'Create Product' : 'Edit Product'}</h1>
             <p className="text-sm text-muted-foreground">{displayProduct.name}</p>
           </div>
+
+        {/* Product Category (existing product) */}
+        {!isNewProduct && (
+          <div className="mb-6 p-6 border rounded-md bg-background">
+            <h2 className="text-lg font-medium mb-4">Product Category</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              <div>
+                <label className="block text-sm font-medium mb-2">Category</label>
+                <div className="flex gap-2">
+                  <select
+                    className="border rounded-md px-3 py-2 text-sm w-full md:w-64"
+                    value={catMode === 'custom' ? 'custom' : (catValue || '')}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') { setCatMode('custom'); }
+                      else { setCatMode('select'); setCatValue(e.target.value); }
+                    }}
+                  >
+                    <option value="">Select…</option>
+                    {(categories || []).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value="custom">Custom…</option>
+                  </select>
+                  {catMode === 'custom' && (
+                    <input
+                      className="border rounded-md px-3 py-2 text-sm flex-1"
+                      placeholder="Enter category"
+                      value={catCustom}
+                      onChange={(e) => setCatCustom(e.target.value)}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      if (!productId) return;
+                      const next = (catMode === 'custom' ? catCustom : catValue).trim();
+                      await apiUpdateProduct(productId, { category: next } as any);
+                      qc.invalidateQueries({ queryKey: ["product", productId] });
+                      qc.invalidateQueries({ queryKey: ["product-categories"] });
+                      qc.invalidateQueries({ queryKey: ["admin-inventory"] });
+                      toast({ title: 'Saved', description: 'Category updated.' });
+                    } catch (e: any) {
+                      toast({ title: 'Save failed', description: String(e?.message || e), variant: 'destructive' });
+                    }
+                  }}
+                  disabled={catMode === 'custom' ? !catCustom.trim() : !catValue}
+                >
+                  Save Category
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Select an existing category or choose Custom… to enter a new one.</p>
+          </div>
+        )}
 
         {/* Specs & Details Editor */}
         <div className="mb-6 p-6 border rounded-md bg-background">
@@ -686,19 +767,16 @@ const AdminProductEditor = () => {
                   details: detailsList,
                   size_chart: (sizeChart.columns.length && sizeChart.rows.length) ? sizeChart : null,
                 };
-                const { error } = await supabase
-                  .from('products')
-                  .update({
-                    available_sizes: sizes,
-                    customization_options: nextOptions,
-                  })
-                  .eq('id', productId);
-                if (error) {
-                  toast({ title: 'Save failed', description: String(error.message || error), variant: 'destructive' });
-                } else {
+                try {
+                  await apiUpdateProduct(productId, {
+                    sizes,
+                    specifications: nextOptions as any,
+                  } as any);
                   qc.invalidateQueries({ queryKey: ['product', productId] });
                   qc.invalidateQueries({ queryKey: ['catalog-products'] });
                   toast({ title: 'Saved', description: 'Specs updated.' });
+                } catch (e: any) {
+                  toast({ title: 'Save failed', description: String(e?.message || e), variant: 'destructive' });
                 }
               }}
             >
@@ -889,7 +967,14 @@ const AdminProductEditor = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="h-6 w-6 rounded-full border" style={{ backgroundColor: v.color_hex || '#000000' }} />
+                      {(() => {
+                        const preview = v.front_image_url || v.image_url || v.back_image_url || v.sleeve_image_url || '';
+                        return preview ? (
+                          <img src={preview} alt="preview" className="h-8 w-8 rounded object-cover border" />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full border" style={{ backgroundColor: v.color_hex || '#000000' }} />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Input
@@ -1018,8 +1103,9 @@ const AdminProductEditor = () => {
             </TableBody>
           </Table>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

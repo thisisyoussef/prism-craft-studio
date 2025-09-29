@@ -2,7 +2,6 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export interface PaymentDocument extends Document {
 	orderId: Types.ObjectId;
-	phase: 'deposit' | 'balance';
 	amountCents: number;
 	currency: string;
 	status: 'pending' | 'requires_action' | 'paid' | 'failed';
@@ -17,7 +16,6 @@ export interface PaymentDocument extends Document {
 
 const PaymentSchema = new Schema<PaymentDocument>({
 	orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
-	phase: { type: String, enum: ['deposit', 'balance'], required: true },
 	amountCents: { type: Number, required: true },
 	currency: { type: String, default: 'usd' },
 	status: { type: String, enum: ['pending', 'requires_action', 'paid', 'failed'], default: 'pending' },

@@ -29,7 +29,7 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
 
   const signUpForm = useForm<SignUpInput>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { companyName: '', email: '', password: '' },
+    defaultValues: { firstName: '', lastName: '', companyName: '', email: '', password: '' },
     mode: 'onSubmit',
   })
 
@@ -46,8 +46,8 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
 
   const handleSignUp = async (values: SignUpInput) => {
     try {
-      await signUp(values.email, values.password, values.companyName)
-      toast.success('Account created! Please check your email to verify.')
+      await signUp(values.email, values.password, values.companyName || '', values.firstName, values.lastName)
+      toast.success("Account created! You're signed in.")
       setOpen(false)
       signUpForm.reset()
     } catch (error: any) {
@@ -114,6 +114,32 @@ const AuthDialog = ({ trigger, defaultTab = 'signin' }: AuthDialogProps) => {
           <TabsContent value="signup" className="space-y-4">
             <Form {...signUpForm}>
               <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
+                <FormField
+                  control={signUpForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First name</FormLabel>
+                      <FormControl>
+                        <Input id="firstName" placeholder="Jane" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={signUpForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last name</FormLabel>
+                      <FormControl>
+                        <Input id="lastName" placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={signUpForm.control}
                   name="companyName"

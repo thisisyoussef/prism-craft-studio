@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Navigation from "@/components/Navigation";
-import { supabase } from "@/integrations/supabase/client";
+import { getProduct as apiGetProduct, type ApiProduct } from "@/lib/services/productService";
+import { listByProduct as listVariantsByProduct, type ApiVariant } from "@/lib/services/variantService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,29 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface ProductRow {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  base_price: number | null;
-  image_url: string | null;
-  available_sizes?: string[] | null;
-  available_colors?: string[] | null;
-  customization_options?: any;
-}
+type ProductRow = ApiProduct;
 
-interface VariantRow {
-  id: string;
-  product_id: string;
-  color_name: string;
-  color_hex: string | null;
-  active: boolean | null;
-  image_url?: string | null;
-  front_image_url?: string | null;
-  back_image_url?: string | null;
-  sleeve_image_url?: string | null;
-}
+type VariantRow = ApiVariant;
 
 const ImageBlock = ({ src, alt }: { src: string | null | undefined; alt: string }) => (
   <div className="aspect-square rounded-xl overflow-hidden bg-background border">
@@ -55,16 +36,9 @@ export default function ProductSpecs() {
     enabled: !!productId,
     queryKey: ["product", productId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, description, category, base_price, image_url, available_sizes, available_colors, customization_options")
-        .eq("id", productId)
-        .single();
-      if (error) throw error;
-      // Respect active flag
-      const active = (data?.customization_options as any)?.active;
-      if (active === false || active === "false") return null;
-      return data as ProductRow;
+      const p = await apiGetProduct(productId!);
+      if (!p || p.active === false) return null;
+      return p;
     },
   });
 
@@ -72,30 +46,26 @@ export default function ProductSpecs() {
     enabled: !!productId,
     queryKey: ["product-variants", productId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("product_variants")
-        .select("id, product_id, color_name, color_hex, active, image_url, front_image_url, back_image_url, sleeve_image_url")
-        .eq("product_id", productId);
-      if (error) throw error;
-      return ((data as unknown) as VariantRow[]) || [];
+      const vs = await listVariantsByProduct(productId!);
+      return (vs || []) as VariantRow[];
     },
   });
 
   const activeVariants = useMemo(() => (variants || []).filter(v => v.active !== false), [variants]);
 
   const cover = useMemo(() => {
-    const v = activeVariants.find(v => v.front_image_url || v.image_url || v.back_image_url || v.sleeve_image_url);
-    return v?.front_image_url || v?.image_url || v?.back_image_url || v?.sleeve_image_url || product?.image_url || null;
-  }, [activeVariants, product?.image_url]);
+    const v = activeVariants.find(v => v.frontImageUrl || v.imageUrl || v.backImageUrl || v.sleeveImageUrl);
+    return v?.frontImageUrl || v?.imageUrl || v?.backImageUrl || v?.sleeveImageUrl || product?.imageUrl || null;
+  }, [activeVariants, product?.imageUrl]);
 
   const colorChips = useMemo(() => {
     // Deduplicate by lowercase key but preserve original casing for display
     const map = new Map<string, { name: string; hex: string }>();
     for (const v of activeVariants) {
-      const raw = (v.color_name || "").trim();
+      const raw = (v.colorName || "").trim();
       if (!raw) continue;
       const key = raw.toLowerCase();
-      const hex = v.color_hex || "#ffffff";
+      const hex = v.colorHex || "#ffffff";
       if (!map.has(key)) {
         map.set(key, { name: raw, hex });
       } else {
@@ -109,9 +79,9 @@ export default function ProductSpecs() {
     return Array.from(map.values());
   }, [activeVariants]);
 
-  const sizes = product?.available_sizes || [];
-  const opts = (product?.customization_options as any) || {};
-  const moq = opts?.moq ?? 50;
+  const sizes = product?.sizes || [];
+  const opts = (product?.specifications as any) || {};
+  const moq = (product?.moq as any) ?? 50;
   const materials: string | undefined = opts?.materials;
   const fit: string | undefined = opts?.fit;
   const care: string | undefined = opts?.care;
@@ -170,8 +140,8 @@ export default function ProductSpecs() {
                   {activeVariants.slice(0, 8).map(v => (
                     <ImageBlock
                       key={v.id}
-                      src={v.front_image_url || v.image_url || v.back_image_url || v.sleeve_image_url || null}
-                      alt={`${product?.name} - ${v.color_name}`}
+                      src={v.frontImageUrl || v.imageUrl || v.backImageUrl || v.sleeveImageUrl || null}
+                      alt={`${product?.name} - ${v.colorName}`}
                     />
                   ))}
                 </div>
@@ -191,7 +161,7 @@ export default function ProductSpecs() {
                     {loading ? (
                       <Skeleton className="h-7 w-24" />
                     ) : (
-                      `$${Number(product?.base_price || 0).toFixed(2)}`
+                      `$${Number(product?.basePrice || 0).toFixed(2)}`
                     )}
                     <span className="text-sm text-muted-foreground font-normal">/piece</span>
                   </span>

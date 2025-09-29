@@ -37,7 +37,8 @@ describe('Settings password update', () => {
     fireEvent.change(q.getByLabelText(/new password/i), { target: { value: 'longpassword' } });
     fireEvent.change(q.getByLabelText(/confirm password/i), { target: { value: 'longpassword' } });
     fireEvent.click(q.getByRole('button', { name: /update password/i }));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Password changed' })));
+    // During migration, password change is stubbed; expect a not available toast
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Not available' })));
   });
 });
 

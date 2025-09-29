@@ -17,11 +17,15 @@ import { Slider } from '@/components/ui/slider'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAuthStore, useOrderStore, usePricingStore, useGuestStore, type PrintPlacement, type PrintLocation, type PrintMethod } from '@/lib/store'
+import type { CreateOrderPayload } from '@/lib/types/order'
 import { Upload, FileText, Calculator, ZoomIn, ZoomOut, Images, Plus, Copy, Trash2, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import AuthDialog from './AuthDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
-import { supabase } from '@/lib/supabase'
+import { listProducts, getProduct, type ApiProduct } from '@/lib/services/productService'
+import { OrderService } from '@/lib/services/orderServiceNode'
+import { uploadFile } from '@/lib/services/fileService'
+import { listByProduct as listVariantsByProduct, type ApiVariant } from '@/lib/services/variantService'
 import { customizerSchema, type CustomizerInput } from '@/lib/validation'
 import { zodErrorMessage } from '@/lib/errors'
 import { useForm } from 'react-hook-form'
@@ -29,6 +33,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { sendGuestDraftEmail } from '../lib/email'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import GarmentMockup, { type GarmentType } from './GarmentMockups'
+import { createGuestDraft } from '@/lib/services/guestDraftService'
+import { createGuestOrder, requestGuestLink } from '@/lib/services/guestOrderService'
 
 type CustomizerMode = 'dialog' | 'page'
 
@@ -73,12 +79,23 @@ function getBounds(product: GarmentType, view: 'front' | 'back' | 'sleeve'): Bou
   }
 }
 
-// Helper: compute overlay style within bounds from normalized position/size
-function overlayStyleFor(p: PrintPlacement, bounds: Bounds): CSSProperties {
-  const baseW = 12
-  const baseH = 16
-  const widthPct = Math.min(bounds.width, Math.max(5, (p?.size?.widthIn ?? 6) / baseW * 60))
-  const heightPct = Math.min(bounds.height, Math.max(5, (p?.size?.heightIn ?? 8) / baseH * 60))
+// Reference printable areas (inches) per view
+const VIEW_REF: Record<'front'|'back'|'sleeve', { W: number; H: number }> = {
+  front: { W: 12, H: 16 },
+  back: { W: 12, H: 16 },
+  sleeve: { W: 4, H: 12 },
+}
+
+// Helper: compute overlay style within bounds from normalized position/size using view reference
+function overlayStyleFor(p: PrintPlacement, bounds: Bounds, view: 'front'|'back'|'sleeve'): CSSProperties {
+  const ref = VIEW_REF[view]
+  const minWIn = 1
+  const minHIn = 1
+  const wIn = Math.max(minWIn, p?.size?.widthIn ?? 6)
+  const hIn = Math.max(minHIn, p?.size?.heightIn ?? 8)
+  // Map inches to percent of viewer using bounds and reference inches
+  const widthPct = Math.min(bounds.width, (wIn / ref.W) * bounds.width)
+  const heightPct = Math.min(bounds.height, (hIn / ref.H) * bounds.height)
   const x = typeof p?.position?.x === 'number' ? p.position.x : 0 // -1..1 relative to bounds
   const y = typeof p?.position?.y === 'number' ? p.position.y : 0 // -1..1 relative to bounds
   let left = bounds.left + (bounds.width * (0.5 + x * 0.5)) - widthPct / 2
@@ -94,7 +111,6 @@ function overlayStyleFor(p: PrintPlacement, bounds: Bounds): CSSProperties {
 const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   const navigate = useNavigate()
   const [selectedProduct, setSelectedProduct] = useState('')
-  const [selectedColors, setSelectedColors] = useState<string[]>([])
   const [selectedBaseColor, setSelectedBaseColor] = useState<string>('White')
   const [selectedView, setSelectedView] = useState<'front' | 'back' | 'sleeve'>('front')
   const [zoom, setZoom] = useState<number>(1)
@@ -114,7 +130,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     mode: 'onChange',
     defaultValues: {
       productId: selectedProduct || '',
-      selectedColors,
       sizesQty,
       prints,
     },
@@ -136,6 +151,8 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   const lastMouse = useRef<{ x: number; y: number } | null>(null)
   const rafId = useRef<number | null>(null)
   const pendingEvent = useRef<{ x: number; y: number } | null>(null)
+  // Track the active pointer for drag/resize/rotate (prevents multi-touch conflicts)
+  const activePointerId = useRef<number | null>(null)
   // Track artwork aspect ratio per print so the border can hug the image bounds
   const [artworkAspect, setArtworkAspect] = useState<Record<string, number>>({})
   // Cache blob URLs per print/file to avoid re-creating every render (prevents flashing)
@@ -145,18 +162,15 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   const fallbackSizes = ['XS','S','M','L','XL','XXL']
 
   // Products and Variants from Supabase (single source of truth)
-  interface ProductRow { id: string; name: string; base_price: number | null; category: string | null; available_sizes?: string[] | null }
+  type ProductRow = ApiProduct
   const [products, setProducts] = useState<ProductRow[]>([])
 
   // Load products once
   useEffect(() => {
     (async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from('products')
-          .select('id, name, base_price, category, available_sizes')
-          .order('name', { ascending: true })
-        if (!error && Array.isArray(data)) setProducts(data as ProductRow[])
+        const items = await listProducts()
+        setProducts((items || []).filter(p => p.active !== false))
       } catch {}
     })()
   }, [])
@@ -191,18 +205,22 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     if (!selectedProduct) { setVariants([]); return }
     (async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from('product_variants')
-          .select('id, color_name, color_hex, image_url, front_image_url, back_image_url, sleeve_image_url, active')
-          .eq('product_id', selectedProduct)
-        if (!error && Array.isArray(data)) {
-          const vs = data as Variant[]
-          setVariants(vs)
-          // default base color to first active variant if current selection is missing
-          const names = vs.map(v => v.color_name)
-          if (!names.includes(selectedBaseColor) && names.length > 0) {
-            setSelectedBaseColor(names[0]!)
-          }
+        const vs = await listVariantsByProduct(selectedProduct)
+        const mapped: Variant[] = (vs || []).map((v: ApiVariant) => ({
+          id: v.id,
+          product_id: v.productId,
+          color_name: v.colorName,
+          color_hex: v.colorHex,
+          image_url: v.imageUrl ?? null,
+          front_image_url: v.frontImageUrl ?? null,
+          back_image_url: v.backImageUrl ?? null,
+          sleeve_image_url: v.sleeveImageUrl ?? null,
+          active: v.active,
+        }))
+        setVariants(mapped)
+        const names = mapped.map(v => v.color_name)
+        if (!names.includes(selectedBaseColor) && names.length > 0) {
+          setSelectedBaseColor(names[0]!)
         }
       } catch {}
     })()
@@ -221,13 +239,9 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
     if (!selectedProduct) return
     ;(async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from('products')
-          .select('available_sizes')
-          .eq('id', selectedProduct)
-          .maybeSingle()
-        if (!error && data && Array.isArray((data as any).available_sizes)) {
-          setAvailableSizes(((data as any).available_sizes as string[]) || [])
+        const p = await getProduct(selectedProduct)
+        if (p && Array.isArray(p.sizes)) {
+          setAvailableSizes((p.sizes as string[]) || [])
         }
       } catch {}
     })()
@@ -248,9 +262,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   useEffect(() => {
     setValue('productId', selectedProduct || '', { shouldValidate: true })
   }, [selectedProduct])
-  useEffect(() => {
-    setValue('selectedColors', selectedColors, { shouldValidate: true })
-  }, [selectedColors])
   useEffect(() => {
     setValue('sizesQty', sizesQty, { shouldValidate: true })
   }, [sizesQty])
@@ -297,7 +308,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
   // Derive a map for quick lookups
   const productMap = useMemo(() => {
     const map: Record<string, { name: string; basePrice: number; category: string | null; sizes: string[] | null }> = {}
-    products.forEach(p => { map[p.id] = { name: p.name, basePrice: p.base_price ?? 0, category: p.category, sizes: (p.available_sizes as any) ?? null } })
+    products.forEach(p => { map[p.id] = { name: p.name, basePrice: p.basePrice ?? 0, category: p.category, sizes: (p.sizes as any) ?? null } })
     return map
   }, [products])
 
@@ -308,7 +319,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
       .map(v => [v.color_name, v.color_hex || '#ffffff'] as const)
     return Object.fromEntries(entries)
   }, [variants])
-  const colors = Object.keys(colorSwatches)
+  // No per-print colors; only base garment color is used
   const sizes = useMemo(() => {
     return productMap[selectedProduct]?.sizes || fallbackSizes
   }, [productMap, selectedProduct])
@@ -350,14 +361,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
   const removeFile = (index: number) => {
     setArtworkFiles(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const toggleColor = (color: string) => {
-    setSelectedColors(prev => {
-      const next = prev.includes(color) ? prev.filter(c => c !== color) : [...prev, color]
-      setValue('selectedColors', next, { shouldValidate: true })
-      return next
-    })
   }
 
   const updateSizeQty = (size: string, qty: number) => {
@@ -476,45 +479,100 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
     // Sync latest state to form and validate
     setValue('productId', selectedProduct || '')
-    setValue('selectedColors', selectedColors)
     setValue('sizesQty', sizesQty)
     setValue('prints', prints)
     const valid = await form.trigger()
     if (!valid) {
       const errs = formState.errors
-      const messages = [errs.productId?.message, errs.selectedColors?.message, errs.sizesQty?.message, errs.prints?.message].filter(Boolean) as string[]
+      const messages = [errs.productId?.message, errs.sizesQty?.message, errs.prints?.message].filter(Boolean) as string[]
       toast.error(messages.join('\n'))
       return
     }
 
     try {
-      const orderPayload = {
-        productId: selectedProduct,
+      const pMeta = productMap[selectedProduct] || { name: 'Custom Apparel', basePrice: 0, category: 'Apparel', sizes: null }
+      const unitPrice = quantity > 0 ? Number((price / quantity).toFixed(2)) : 0
+      const mappedPrints = prints.map(p => ({
+        id: p.id,
+        location: p.location,
+        method: p.method,
+        size: p.size,
+        position: p.position,
+        rotationDeg: p.rotationDeg,
+        customText: p.customText,
+        notes: p.notes,
+      }))
+
+      const orderPayload: CreateOrderPayload = {
+        product_name: pMeta.name || 'Custom Apparel',
+        product_category: pMeta.category || 'Apparel',
+        product_id: selectedProduct || undefined,
         quantity,
-        colors: selectedColors,
-        sizes: sizesQty,
-        customizationDetails: {
+        unit_price: unitPrice,
+        total_amount: Number(price.toFixed(2)),
+        customization: {
           baseColor: selectedBaseColor,
-          prints: prints.map(p => ({
-            id: p.id,
-            location: p.location,
-            method: p.method,
-            colors: p.colors,
-            colorCount: p.colorCount,
-            size: p.size,
-            position: p.position,
-            rotationDeg: p.rotationDeg,
-            customText: p.customText,
-            notes: p.notes,
-          })),
+          method: customization,
+          printLocations: mappedPrints as any,
+          specialInstructions: notes || undefined,
         },
-        artworkFiles: artworkFiles.map(f => f.name),
-        notes,
-        totalAmount: price,
+        colors: [],
+        sizes: sizesQty,
+        print_locations: mappedPrints as any,
+        artwork_files: artworkFiles.map(f => f.name),
+        customer_notes: notes || undefined,
       }
 
       const created = await addOrder(orderPayload)
       toast.success('Order created successfully!')
+
+      // After creation, attempt to capture mockups (front/back) and attach to order
+      if (created?.id && viewerRef.current) {
+        const prevView = selectedView
+        const urls: { front?: string; back?: string; sleeve?: string } = {}
+        const capture = async (view: 'front' | 'back' | 'sleeve') => {
+          return new Promise<Blob | null>(async (resolve) => {
+            try {
+              setSelectedView(view)
+              await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)))
+              const node = viewerRef.current!
+              // Dynamic import to avoid hard dependency during type-check/build if package is absent
+              const mod: any = await import(/* @vite-ignore */ 'html-to-image').catch(() => null)
+              if (!mod || typeof mod.toBlob !== 'function') { resolve(null); return }
+              const blob = await mod.toBlob(node, { pixelRatio: 2, cacheBust: true, backgroundColor: '#ffffff' })
+              resolve(blob)
+            } catch { resolve(null) }
+          })
+        }
+        try {
+          const frontBlob = await capture('front')
+          if (frontBlob) {
+            const file = new File([frontBlob], 'mockup-front.png', { type: 'image/png' })
+            const url = await uploadFile(file, { orderId: created.id, filePurpose: 'mockup' })
+            if (url) urls.front = url
+          }
+          const backBlob = await capture('back')
+          if (backBlob) {
+            const file = new File([backBlob], 'mockup-back.png', { type: 'image/png' })
+            const url = await uploadFile(file, { orderId: created.id, filePurpose: 'mockup' })
+            if (url) urls.back = url
+          }
+          const sleeveBlob = await capture('sleeve')
+          if (sleeveBlob) {
+            const file = new File([sleeveBlob], 'mockup-sleeve.png', { type: 'image/png' })
+            const url = await uploadFile(file, { orderId: created.id, filePurpose: 'mockup' })
+            if (url) urls.sleeve = url
+          }
+          // Restore previous view
+          setSelectedView(prevView)
+          if (urls.front || urls.back || urls.sleeve) {
+            try { await OrderService.attachMockups(created.id, urls) } catch {}
+          }
+        } catch {
+          // non-blocking
+        }
+      }
+
       // Navigate to order details for payment actions
       if (created?.id) {
         navigate(`/orders/${created.id}`)
@@ -528,7 +586,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
   const resetForm = () => {
     setSelectedProduct('')
-    setSelectedColors([])
     setSelectedBaseColor('White')
     setSizesQty({})
     setArtworkFiles([])
@@ -538,8 +595,8 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
   const isFormValid = useMemo(() => {
     const selectedSizes = Object.values(sizesQty).some(q => (q || 0) > 0)
-    return Boolean(selectedProduct) && selectedColors.length > 0 && selectedSizes && prints.length > 0
-  }, [selectedProduct, selectedColors, sizesQty, prints])
+    return Boolean(selectedProduct) && selectedSizes && prints.length > 0
+  }, [selectedProduct, sizesQty, prints])
 
   // Inline SVG mockup replaces external placeholder
 
@@ -564,7 +621,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             <SelectContent>
               {products.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.name} {typeof p.base_price === 'number' ? `- $${p.base_price}` : ''}
+                  {p.name} {typeof p.basePrice === 'number' ? `- $${p.basePrice}` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -576,7 +633,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
 
         
 
-        {/* Color Selection */}
+        {/* Garment Base Color */}
         <div className="space-y-3">
           <Label>Garment Base Color</Label>
           <div className="flex flex-wrap gap-2">
@@ -592,29 +649,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
               />
             ))}
           </div>
-        </div>
-
-        {/* Print Colors */}
-        <div className="space-y-3">
-          <Label>Print Colors * ({selectedColors.length} selected)</Label>
-          <div className="flex flex-wrap gap-3">
-            {colors.map((color) => (
-              <div key={color} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={`w-7 h-7 rounded-full border ${selectedColors.includes(color) ? 'ring-2 ring-primary' : 'border-border'}`}
-                  style={{ backgroundColor: colorSwatches[color] }}
-                  onClick={() => toggleColor(color)}
-                  aria-label={color}
-                  title={color}
-                />
-                <span className="text-xs">{color}</span>
-              </div>
-            ))}
-          </div>
-          {formState.errors.selectedColors?.message && (
-            <div className="text-xs text-destructive">{formState.errors.selectedColors.message}</div>
-          )}
         </div>
 
         {/* Sizes with quantities */}
@@ -654,7 +688,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             </div>
           </div>
           {formState.errors.sizesQty?.message && (
-            <div className="text-xs text-destructive">{formState.errors.sizesQty.message}</div>
+            <div className="text-xs text-destructive">{String(formState.errors.sizesQty?.message || '')}</div>
           )}
         </div>
 
@@ -670,6 +704,8 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
               <SelectItem value="embroidery">Embroidery (Included)</SelectItem>
               <SelectItem value="vinyl">Vinyl Transfer (Included)</SelectItem>
               <SelectItem value="dtg">Direct-to-Garment (Included)</SelectItem>
+              <SelectItem value="dtf">DTF (Included)</SelectItem>
+              <SelectItem value="heat_transfer">Heat Transfer (Included)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -728,14 +764,17 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
               <TabsList>
                 <TabsTrigger value="front">Front</TabsTrigger>
                 <TabsTrigger value="back">Back</TabsTrigger>
+                <TabsTrigger value="sleeve">Sleeve</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
           <div className="bg-muted/30 rounded-md">
             <AspectRatio ratio={1}>
               <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                <div ref={viewerRef} className="relative select-none" style={{ transform: `scale(${zoom})` }}
-                  onMouseMove={(e) => {
+                <div ref={viewerRef} className="relative select-none" style={{ transform: `scale(${zoom})`, touchAction: 'none' }}
+                  onPointerMove={(e) => {
+                    // Only respond to the active pointer while dragging/resizing/rotating
+                    if (activePointerId.current !== null && e.pointerId !== activePointerId.current) return
                     // store latest mouse and schedule one RAF update to reduce jitter
                     pendingEvent.current = { x: e.clientX, y: e.clientY }
                     if (rafId.current != null) return
@@ -776,7 +815,7 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                         return
                       }
 
-                      // resizing
+                      // resizing with inches-first clamping using view reference
                       if (resizing) {
                         const p = prints.find(pr => pr.id === resizing.id)
                         if (!p) return
@@ -784,31 +823,34 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                         const dxPx = ev.x - prev.x
                         const dyPx = ev.y - prev.y
                         lastMouse.current = { x: ev.x, y: ev.y }
-                        const dxPct = (dxPx / rect.width) * 100
-                        const dyPct = (dyPx / rect.height) * 100
-                        const baseW = 12
-                        const baseH = 16
-                        const scalePct = 60
+                        const ref = VIEW_REF[selectedView]
+                        const boundsPxW = rect.width * (bounds.width / 100)
+                        const boundsPxH = rect.height * (bounds.height / 100)
+                        const inchPerPxX = ref.W / Math.max(1, boundsPxW)
+                        const inchPerPxY = ref.H / Math.max(1, boundsPxH)
                         let newW = p.size.widthIn
                         let newH = p.size.heightIn
                         const corner = resizing.corner
                         const signX = corner.includes('e') ? 1 : -1
                         const signY = corner.includes('s') ? 1 : -1
-                        newW = Math.max(1, Math.min(20, newW + (baseW * (dxPct * signX) / scalePct)))
-                        newH = Math.max(1, Math.min(24, newH + (baseH * (dyPct * signY) / scalePct)))
-                        // Prevent oversizing beyond bounds: recompute style and shrink if needed
-                        const temp = { ...p, size: { ...p.size, widthIn: newW, heightIn: newH } }
-                        const styled = overlayStyleFor(temp as any, bounds)
-                        const wPct = parseFloat(styled.width as string)
-                        const hPct = parseFloat(styled.height as string)
-                        if (wPct > bounds.width) newW = (bounds.width / 60) * baseW
-                        if (hPct > bounds.height) newH = (bounds.height / 60) * baseH
+                        newW = newW + (dxPx * signX * inchPerPxX)
+                        newH = newH + (dyPx * signY * inchPerPxY)
+                        // Clamp to min/max inches derived from reference area
+                        newW = Math.max(1, Math.min(ref.W, newW))
+                        newH = Math.max(1, Math.min(ref.H, newH))
                         updatePrint(resizing.id, { size: { ...p.size, widthIn: newW, heightIn: newH } })
                       }
                     })
                   }}
-                  onMouseUp={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
-                  onMouseLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null }}
+                  onPointerUp={() => {
+                    setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null
+                    if (viewerRef.current && activePointerId.current != null) {
+                      try { viewerRef.current.releasePointerCapture(activePointerId.current) } catch {}
+                    }
+                    activePointerId.current = null
+                  }}
+                  onPointerLeave={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null; activePointerId.current = null }}
+                  onPointerCancel={() => { setDragging(null); setResizing(null); setRotating(null); lastMouse.current = null; activePointerId.current = null }}
                 >
                   {/* Garment mockup with per-view uploaded image URLs (no SVG or generic fallbacks) */}
                   <GarmentMockup
@@ -824,9 +866,12 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                     <div
                       key={p.id}
                       className="absolute text-[10px] text-foreground cursor-move group"
-                      style={overlayStyleFor(p, bounds)}
-                      onMouseDown={(e) => {
+                      style={overlayStyleFor(p, bounds, selectedView)}
+                      onPointerDown={(e) => {
                         e.preventDefault()
+                        // capture pointer on the element to keep receiving moves during drag
+                        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
+                        activePointerId.current = e.pointerId
                         setDragging({ id: p.id })
                       }}
                       onDragOver={(e) => { e.preventDefault() }}
@@ -880,14 +925,14 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                                   <div
                                     key={corner}
                                     className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                   />
                                 ))}
                                 {/* Rotation handle and angle badge (top-center) */}
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                 <div
                                   className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setRotating({ id: p.id }) }}
                                   title="Rotate"
                                 />
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -917,13 +962,13 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                                   <div
                                     key={corner}
                                     className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                   />
                                 ))}
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                                 <div
                                   className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setRotating({ id: p.id }) }}
                                   title="Rotate"
                                 />
                                 <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -939,13 +984,13 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                                 <div
                                   key={corner}
                                   className={`absolute w-3.5 h-3.5 bg-white rounded-sm border-2 border-primary shadow-sm ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' } ${corner === 'nw' ? 'top-[-7px] left-[-7px]' : ''} ${corner === 'ne' ? 'top-[-7px] right-[-7px]' : ''} ${corner === 'sw' ? 'bottom-[-7px] left-[-7px]' : ''} ${corner === 'se' ? 'bottom-[-7px] right-[-7px]' : ''}`}
-                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
+                                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setResizing({ id: p.id, corner }); lastMouse.current = { x: e.clientX, y: e.clientY } }}
                                 />
                               ))}
                               <div className={`absolute left-1/2 -translate-x-1/2 -top-7 h-5 w-px bg-primary/70 ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`} />
                               <div
                                 className={`absolute left-1/2 -translate-x-1/2 -top-9 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-sm cursor-crosshair ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}
-                                onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setRotating({ id: p.id }) }}
+                                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}; activePointerId.current = e.pointerId; setRotating({ id: p.id }) }}
                                 title="Rotate"
                               />
                               <div className={`absolute left-1/2 -translate-x-1/2 -top-12 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-medium ${ (resizing?.id===p.id || rotating?.id===p.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100' }`}>
@@ -988,7 +1033,6 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span>Product:</span><span>{selectedProduct ? (productMap[selectedProduct]?.name || 'Unknown') : 'None selected'}</span></div>
             <div className="flex justify-between"><span>Quantity:</span><span>{quantity} pieces</span></div>
-            <div className="flex justify-between"><span>Print Colors:</span><span>{selectedColors.length} selected</span></div>
             <div className="flex justify-between"><span>Sizes:</span><span>{Object.values(sizesQty).reduce((a,b)=>a+(b||0),0)} total</span></div>
           </div>
           <div className="border-t border-primary/10 pt-4 mt-4">
@@ -1004,14 +1048,13 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
             ) : (
               <>
                 <GuestDetailsDialog
-                  trigger={<Button className="w-full" size="lg">Order as Guest</Button>}
-                  title="Order as Guest"
-                  description="Save your configuration and receive your order quote by email. No account required."
+                  trigger={<Button className="w-full" size="lg">Continue as Guest</Button>}
+                  title="Continue as Guest"
+                  description="Place your order with just your email. We'll email you a secure link to access it."
                   onSubmitted={async () => {
-                    // Validate configuration before saving guest draft
+                    // Validate configuration before creating a guest order
                     const validation = customizerSchema.safeParse({
                       productId: selectedProduct,
-                      selectedColors,
                       sizesQty,
                       prints,
                     })
@@ -1019,33 +1062,59 @@ const ProductCustomizer = ({ mode = 'dialog' }: ProductCustomizerProps) => {
                       toast.error(zodErrorMessage(validation.error))
                       return
                     }
+                    if (!info?.email) {
+                      toast.error('Email is required to place a guest order')
+                      return
+                    }
                     try {
-                      const payload = {
-                        type: 'quote',
-                        info: info || {},
-                        address: address || {},
-                        draft: {
-                          product_type: selectedProduct,
-                          colors: selectedColors,
-                          sizes: sizesQty,
-                          customization_prints: prints.map(p => ({ id: p.id, location: p.location, method: p.method, colors: p.colors, colorCount: p.colorCount, size: p.size, position: p.position, rotationDeg: p.rotationDeg, customText: p.customText, notes: p.notes })),
-                          artwork_files: artworkFiles.map(f => f.name),
-                          custom_text: customText,
-                          notes,
-                          quantity,
-                        },
-                        totals: { total: price },
-                        pricing: { quantity, customization, prints: prints.map(p => ({ id: p.id, location: p.location, method: p.method, colorCount: p.colorCount, size: p.size })), unit_price: price / Math.max(1, quantity), total: price },
+                      const pMeta = productMap[selectedProduct] || { name: 'Custom Apparel', basePrice: 0, category: 'Apparel', sizes: null }
+                      const unitPrice = quantity > 0 ? Number((price / quantity).toFixed(2)) : 0
+                      const mappedPrints = prints.map(p => ({
+                        id: p.id,
+                        location: p.location,
+                        method: p.method,
+                        size: p.size,
+                        position: p.position,
+                        rotationDeg: p.rotationDeg,
+                        customText: p.customText,
+                        notes: p.notes,
+                      }))
+
+                      const guestOrderPayload = {
+                        email: info.email,
+                        productCategory: pMeta.category || 'Apparel',
+                        productName: pMeta.name || 'Custom Apparel',
+                        quantity,
+                        unitPrice,
+                        totalAmount: Number(price.toFixed(2)),
+                        customization: {
+                          baseColor: selectedBaseColor,
+                          method: customization,
+                          printLocations: mappedPrints,
+                          specialInstructions: notes || undefined,
+                        } as any,
+                        colors: [],
+                        sizes: sizesQty as any,
+                        printLocations: mappedPrints.map(p => p.location),
+                        shippingAddress: address || undefined,
                       }
-                      const { error } = await supabase.from('guest_drafts').insert(payload)
-                      if (error) throw error
-                      // Try to send email (no-op if no key)
-                      await sendGuestDraftEmail('quote', info?.email, payload)
-                      toast.success('Guest quote saved. We\'ll email you shortly.')
-                      setConfirmOpen(true)
+
+                      const created = await createGuestOrder(guestOrderPayload as any)
+                      const orderId = created?.id as string | undefined
+
+                      try {
+                        const res = await requestGuestLink(info.email, orderId)
+                        if (res?.devLink) sessionStorage.setItem('pcs_dev_magic_link', res.devLink)
+                      } catch (e) {
+                        console.warn('[guest] failed to send magic link', e)
+                      }
+
+                      toast.success('Guest order created. Check your email for a magic link to access it.')
+                      navigate(`/check-email?email=${encodeURIComponent(info.email)}`)
+                      resetForm()
                     } catch (e: unknown) {
                       console.error(e)
-                      const message = e instanceof Error ? e.message : 'Failed to save guest quote'
+                      const message = e instanceof Error ? e.message : 'Failed to create guest order'
                       toast.error(message)
                     }
                   }}

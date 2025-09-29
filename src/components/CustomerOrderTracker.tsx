@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Clock, CheckCircle, Package, Truck, AlertCircle, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
-import { OrderService } from '@/lib/services/orderService';
+import { OrderService } from '@/lib/services/orderServiceNode';
 import { useToast } from '@/hooks/use-toast';
 import type { Order, ProductionUpdate, Payment, OrderTimelineEvent } from '@/lib/types/order';
 
@@ -15,14 +15,14 @@ interface CustomerOrderTrackerProps {
 
 const customerStages = [
   { 
-    stage: 'deposit_pending', 
-    label: 'Deposit payment', 
-    description: 'Complete your deposit to start production',
+    stage: 'submitted', 
+    label: 'Payment', 
+    description: 'Complete your payment to start production',
     icon: <CreditCard className="w-5 h-5" />,
     color: 'bg-amber-100 text-amber-800'
   },
   { 
-    stage: 'deposit_paid', 
+    stage: 'paid', 
     label: 'Design review', 
     description: 'We\'re reviewing your design and preparing for production',
     icon: <AlertCircle className="w-5 h-5" />,
@@ -36,30 +36,9 @@ const customerStages = [
     color: 'bg-purple-100 text-purple-800'
   },
   { 
-    stage: 'quality_check', 
-    label: 'Quality check', 
-    description: 'Final quality inspection before completion',
-    icon: <CheckCircle className="w-5 h-5" />,
-    color: 'bg-indigo-100 text-indigo-800'
-  },
-  { 
-    stage: 'balance_pending', 
-    label: 'Balance payment', 
-    description: 'Complete final payment to proceed with shipping',
-    icon: <CreditCard className="w-5 h-5" />,
-    color: 'bg-orange-100 text-orange-800'
-  },
-  { 
-    stage: 'ready_to_ship', 
-    label: 'Ready to ship', 
-    description: 'Your order is packed and ready for shipment',
-    icon: <Package className="w-5 h-5" />,
-    color: 'bg-green-100 text-green-800'
-  },
-  { 
-    stage: 'shipped', 
-    label: 'Shipped', 
-    description: 'Your order is on its way to you',
+    stage: 'shipping', 
+    label: 'Shipping', 
+    description: 'We\'re preparing your shipment.',
     icon: <Truck className="w-5 h-5" />,
     color: 'bg-green-100 text-green-800'
   },
@@ -87,22 +66,20 @@ export function CustomerOrderTracker({ orderId }: CustomerOrderTrackerProps) {
   const loadOrderData = async () => {
     try {
       setLoading(true);
-      const orderService = new OrderService();
-      
       // Load order details
-      const orderData = await orderService.getOrder(orderId);
+      const orderData = await OrderService.getOrder(orderId);
       setOrder(orderData);
       
       // Load production updates (customer visible only)
-      const productionUpdates = await orderService.getProductionUpdates(orderId);
+      const productionUpdates = await OrderService.getOrderProductionUpdates(orderId);
       setUpdates(productionUpdates.filter(update => update.visible_to_customer));
       
       // Load payments
-      const orderPayments = await orderService.getPayments(orderId);
+      const orderPayments = await OrderService.getOrderPayments(orderId);
       setPayments(orderPayments);
       
       // Load timeline
-      const orderTimeline = await orderService.getTimeline(orderId);
+      const orderTimeline = await OrderService.getOrderTimeline(orderId);
       setTimeline(orderTimeline);
       
     } catch (error) {
@@ -122,34 +99,21 @@ export function CustomerOrderTracker({ orderId }: CustomerOrderTrackerProps) {
     return customerStages.findIndex(s => s.stage === order.status);
   };
 
-  const getPaymentStatus = (phase: 'deposit' | 'balance') => {
-    return payments.find(p => p.phase === phase);
+  const getPaymentStatus = () => {
+    const fromServer = payments.find(p => p.phase === 'full');
+    if (fromServer) return fromServer;
+    if (!order) return undefined as any;
+    const amount_cents = Math.round(Number(order.total_amount || 0) * 100);
+    const paid = order.status !== 'submitted';
+    return { phase: 'full', amount_cents, status: paid ? 'succeeded' : 'pending' } as any;
   };
 
-  const handlePayment = async (phase: 'deposit' | 'balance') => {
+  const handlePayment = async () => {
     if (!order) return;
     
     try {
-      // This would integrate with the existing checkout flow
-      const payment = getPaymentStatus(phase);
-      if (payment && payment.amount_cents) {
-        // Redirect to Stripe checkout
-        const response = await fetch('/api/create-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: order.id,
-            phase,
-            amountCents: payment.amount_cents,
-            currency: 'usd'
-          })
-        });
-        
-        const { url } = await response.json();
-        if (url) {
-          window.location.href = url;
-        }
-      }
+      const { url } = await OrderService.createCheckout(order.id, 'full_payment');
+      if (url) window.location.href = url;
     } catch (error) {
       console.error('Payment error:', error);
       toast({
@@ -202,7 +166,7 @@ export function CustomerOrderTracker({ orderId }: CustomerOrderTrackerProps) {
             <div>
               <h3 className="font-medium mb-2">Product details</h3>
               <p className="text-sm text-muted-foreground mb-1">
-                {order.customization?.product_type || 'Custom apparel'}
+                {order.product_name || order.product_category || 'Custom apparel'}
               </p>
               <p className="text-sm text-muted-foreground mb-1">
                 Quantity: {order.quantity}
@@ -212,15 +176,11 @@ export function CustomerOrderTracker({ orderId }: CustomerOrderTrackerProps) {
               </p>
             </div>
             <div>
-              <h3 className="font-medium mb-2">Payment breakdown</h3>
+              <h3 className="font-medium mb-2">Payment</h3>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span>Deposit (40%):</span>
-                  <span>${order.deposit_amount?.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Balance (60%):</span>
-                  <span>${order.balance_amount?.toFixed(2)}</span>
+                  <span>Total:</span>
+                  <span>${order.total_amount?.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -271,13 +231,11 @@ export function CustomerOrderTracker({ orderId }: CustomerOrderTrackerProps) {
                       {stage.description}
                     </p>
                     
-                    {/* Payment Actions */}
-                    {(stage.stage === 'deposit_pending' || stage.stage === 'balance_pending') && isCurrent && (
+                    {/* Payment Action */}
+                    {stage.stage === 'submitted' && isCurrent && (
                       <div className="mt-3">
                         {(() => {
-                          const phase = stage.stage === 'deposit_pending' ? 'deposit' : 'balance';
-                          const payment = getPaymentStatus(phase);
-                          
+                          const payment = getPaymentStatus();
                           if (payment?.status === 'succeeded') {
                             return (
                               <Badge className="bg-green-100 text-green-800">
@@ -285,10 +243,9 @@ export function CustomerOrderTracker({ orderId }: CustomerOrderTrackerProps) {
                               </Badge>
                             );
                           }
-                          
                           return (
                             <Button 
-                              onClick={() => handlePayment(phase)}
+                              onClick={() => handlePayment()}
                               size="sm"
                               className="bg-blue-600 hover:bg-blue-700"
                             >

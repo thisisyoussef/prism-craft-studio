@@ -4,17 +4,13 @@ import { useLocation, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useOrderStore, useAuthStore } from '@/lib/store'
-import { supabase } from '@/integrations/supabase/client'
-import { OrderService } from '@/lib/services/orderService'
+import { uploadFile } from '@/lib/services/fileService'
 import toast from 'react-hot-toast'
 import { serverErrorMessage } from '@/lib/errors'
 import { ScrollReveal, ScrollStagger } from '@/components/ScrollReveal'
-
-interface PaymentRow {
-  phase: 'deposit' | 'balance'
-  amount_cents: number
-  status: string
-}
+import { OrderService } from '@/lib/services/orderServiceNode'
+import { Helmet } from 'react-helmet-async'
+import { sendOrderUpdateEmail } from '@/lib/email'
 
 const currency = (cents?: number) => typeof cents === 'number' ? `$${(cents / 100).toFixed(2)}` : '$0.00'
 
@@ -22,30 +18,33 @@ const OrderDetails = () => {
   const { id } = useParams()
   const location = useLocation()
   const { user } = useAuthStore()
-  const { startCheckout } = useOrderStore()
+  const { startCheckout, fetchOrder, fetchOrderPayments, fetchProductionUpdates, fetchOrderTimeline, updateOrderStatus, createProductionUpdate } = useOrderStore()
+  const paymentsMap = useOrderStore(s => s.payments)
+  const timelineMap = useOrderStore(s => s.timeline)
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState<any>(null)
-  const [payments, setPayments] = useState<Record<'deposit' | 'balance', PaymentRow | null>>({ deposit: null, balance: null })
+  const [payment, setPayment] = useState<{ amount_cents: number; status: string } | null>(null)
   const [updates, setUpdates] = useState<Array<{ id: string; stage: string; status: string; description?: string | null; photos?: string[] | null; created_at: string }>>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [artworkUrls, setArtworkUrls] = useState<Record<string, string>>({})
-  const [composer, setComposer] = useState<{ stage: string; status: string; description: string; files: File[] }>({ stage: 'draft', status: 'started', description: '', files: [] })
+  const [composer, setComposer] = useState<{ stage: string; status: string; description: string; files: File[] }>({ stage: 'submitted', status: 'started', description: '', files: [] })
+  const [actionMessage, setActionMessage] = useState('')
+  const [actionBusy, setActionBusy] = useState(false)
+  const [invoiceBusy, setInvoiceBusy] = useState(false)
+  const SUPPORT_EMAIL = (import.meta as any).env?.VITE_SUPPORT_EMAIL || (import.meta as any).env?.VITE_RESEND_EMAIL || ''
 
   const totals = useMemo(() => {
     const totalDollars = Number(order?.total_amount || 0)
     const totalCents = Math.round(totalDollars * 100)
-    const depositCents = payments.deposit?.amount_cents ?? Math.round(totalCents * 0.4)
-    const balanceCents = payments.balance?.amount_cents ?? Math.max(totalCents - depositCents, 0)
-    return { totalCents, depositCents, balanceCents, totalDollars }
-  }, [order?.total_amount, payments.deposit?.amount_cents, payments.balance?.amount_cents])
+    return { totalCents, totalDollars }
+  }, [order?.total_amount])
 
   const statusSteps = useMemo(() => (
     [
-      { key: 'draft', label: 'Draft' },
-      { key: 'pending', label: 'Pending' },
-      { key: 'confirmed', label: 'Confirmed' },
+      { key: 'submitted', label: 'Payment' },
+      { key: 'paid', label: 'Design Review' },
       { key: 'in_production', label: 'In Production' },
-      { key: 'shipped', label: 'Shipped' },
+      { key: 'shipping', label: 'Shipping' },
       { key: 'delivered', label: 'Delivered' },
     ]
   ), [])
@@ -63,67 +62,112 @@ const OrderDetails = () => {
     const map: Record<string,string> = { Black:'#111827', White:'#ffffff', Gray:'#6b7280', Navy:'#1f2937', Red:'#ef4444', Blue:'#3b82f6', Green:'#10b981', Purple:'#8b5cf6', Yellow:'#f59e0b' }
     return map[nameOrHex] || '#e5e7eb'
   }
-  const titleCase = (s?: string) => (s || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
 
-  // Generate signed URLs for artwork files from 'artwork' bucket
-  useEffect(() => {
-    const genUrls = async () => {
-      try {
-        if (!order?.id) return
-        const files: string[] = Array.isArray(order?.artwork_files) ? order.artwork_files : []
-        if (!files.length) return
-        const entries: Array<[string, string]> = []
-        for (const name of files) {
-          // If already an absolute URL, just use it
-          if (/^https?:\/\//i.test(name)) {
-            entries.push([name, name])
-            continue
-          }
-          const candidates = [
-            `${order.id}/${name}`,
-            `${order.id}/updates/${name}`,
-            name,
-          ]
-          let signed: string | null = null
-          for (const key of candidates) {
-            const res = await (supabase as any).storage.from('artwork').createSignedUrl(key, 60 * 60)
-            if (!res.error && res.data?.signedUrl) { signed = res.data.signedUrl; break }
-          }
-          if (signed) entries.push([name, signed])
-        }
-        if (entries.length) setArtworkUrls(Object.fromEntries(entries))
-      } catch (e) {
-        console.warn('Failed to create signed artwork URLs', e)
+  const handleGetInvoice = async () => {
+    try {
+      if (!order?.id) return
+      setInvoiceBusy(true)
+      const { invoiceUrl } = await OrderService.createInvoice(order.id)
+      if (invoiceUrl) {
+        window.open(invoiceUrl, '_blank', 'noopener,noreferrer')
+      } else {
+        toast.error('Failed to create invoice')
       }
+    } catch (e: any) {
+      toast.error(serverErrorMessage(e, 'Failed to create invoice'))
+    } finally {
+      setInvoiceBusy(false)
     }
-    genUrls()
+  }
+
+  const postTimelineEventIfAllowed = async (eventType: string, description?: string) => {
+    try {
+      if (!order?.id) return
+      // Server route is admin-only; this will no-op for customers
+      await OrderService.createTimelineEvent(order.id, { eventType, description, triggerSource: 'api' })
+    } catch (_e) { /* ignore non-admin errors */ }
+  }
+
+  const handleRequestChanges = async () => {
+    try {
+      if (!order?.id) return
+      setActionBusy(true)
+      const subjectNote = `Change request for order ${order.order_number || order.id}`
+      if (SUPPORT_EMAIL) {
+        await sendOrderUpdateEmail(SUPPORT_EMAIL, {
+          order_number: order.order_number,
+          order_id: order.id,
+          status: order.status,
+          explanation: subjectNote,
+          notes: actionMessage || null,
+        })
+      }
+      await postTimelineEventIfAllowed('customer_request_changes', actionMessage)
+      toast.success('Request sent')
+      setActionMessage('')
+    } catch (e: any) {
+      toast.error(serverErrorMessage(e, 'Failed to send request'))
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const handleApproveDesign = async () => {
+    try {
+      if (!order?.id) return
+      setActionBusy(true)
+      const subjectNote = `Design approved for order ${order.order_number || order.id}`
+      if (SUPPORT_EMAIL) {
+        await sendOrderUpdateEmail(SUPPORT_EMAIL, {
+          order_number: order.order_number,
+          order_id: order.id,
+          status: order.status,
+          explanation: subjectNote,
+          notes: actionMessage || null,
+        })
+      }
+      await postTimelineEventIfAllowed('design_approved', actionMessage)
+      toast.success('Approval sent')
+      setActionMessage('')
+    } catch (e: any) {
+      toast.error(serverErrorMessage(e, 'Failed to send approval'))
+    } finally {
+      setActionBusy(false)
+    }
+  }
+  const titleCase = (s?: string) => (s || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
+  const formatAddress = (addr?: any) => {
+    if (!addr) return '—'
+    const lines = [
+      [addr.name, addr.company].filter(Boolean).join(' · '),
+      [addr.address_line_1, addr.address_line_2].filter(Boolean).join(', '),
+      [addr.city, addr.state, addr.postal_code].filter(Boolean).join(', '),
+      addr.country,
+      addr.phone ? `Phone: ${addr.phone}` : undefined,
+    ].filter(Boolean)
+    return lines.join('\n')
+  }
+  const trackingUrl = (tn?: string) => tn ? `https://parcelsapp.com/en/tracking/${encodeURIComponent(tn)}` : undefined
+
+  // Node API: no Supabase storage signing. Use absolute URLs directly if present.
+  useEffect(() => {
+    try {
+      if (!order?.id) return
+      const files: string[] = Array.isArray(order?.artwork_files) ? order.artwork_files : []
+      const entries: Array<[string, string]> = []
+      for (const name of files) {
+        if (/^https?:\/\//i.test(name)) entries.push([name, name])
+      }
+      if (entries.length) setArtworkUrls(Object.fromEntries(entries))
+    } catch {}
   }, [order?.id, Array.isArray(order?.artwork_files) ? order.artwork_files.join('|') : ''])
 
-  // Also sign any photo paths referenced in production updates
+  // No-op signing for update photos; absolute URLs will render directly.
   useEffect(() => {
-    const signUpdatePhotos = async () => {
-      try {
-        const paths = updates.flatMap(u => Array.isArray(u.photos) ? u.photos : [])
-        if (!paths.length) return
-        const entries: Array<[string, string]> = []
-        for (const path of paths) {
-          if (artworkUrls[path]) continue
-          const res = await (supabase as any).storage.from('artwork').createSignedUrl(path, 60 * 60)
-          if (!res.error && res.data?.signedUrl) entries.push([path, res.data.signedUrl])
-        }
-        if (entries.length) setArtworkUrls(prev => ({ ...prev, ...Object.fromEntries(entries) }))
-      } catch (e) {
-        console.warn('Failed to sign update photos', e)
-      }
-    }
-    signUpdatePhotos()
+    return
   }, [updates.map(u => (u.photos || []).join('|')).join('||')])
 
-  const canPay = (p?: PaymentRow | null) => {
-    const st = p?.status
-    if (!st) return true
-    return !['succeeded', 'processing', 'requires_capture', 'canceled'].includes(st)
-  }
+  // No deposit/balance; single payment now.  
 
   const advanceStatus = async () => {
     try {
@@ -156,12 +200,17 @@ const OrderDetails = () => {
   const submitUpdate = async () => {
     try {
       if (!order?.id) return
-      // Upload photos to storage
+      // Upload photos to Node API and collect URLs
       const uploaded: string[] = []
-      for (const f of composer.files) {
-        const path = `${order.id}/updates/${Date.now()}_${f.name}`
-        const { error: upErr } = await (supabase as any).storage.from('artwork').upload(path, f, { upsert: true })
-        if (!upErr) uploaded.push(path)
+      if (composer.files && composer.files.length) {
+        for (const f of composer.files) {
+          try {
+            const url = await uploadFile(f, { orderId: order.id, filePurpose: 'production_update' })
+            if (url) uploaded.push(url)
+          } catch (e) {
+            console.warn('Failed to upload file', f?.name, e)
+          }
+        }
       }
       await postUpdateAndSetStatus(
         composer.stage || order.status,
@@ -184,67 +233,33 @@ const OrderDetails = () => {
     photos: string[]
   ) => {
     if (!order?.id) return
-    // Update order status first
-    const { error: upErr } = await (supabase as any)
-      .from('orders')
-      .update({ status: stage })
-      .eq('id', order.id)
-    if (upErr) throw upErr
-
-    // Insert production update record
-    const { error: puErr } = await (supabase as any)
-      .from('production_updates')
-      .insert({
-        order_id: order.id,
-        stage,
-        status: status || 'updated',
-        description: description || null,
-        photos: photos.length ? photos : null,
-      })
-    if (puErr) throw puErr
-
-    // Update local order state immediately so timeline reflects new status
-    setOrder((o: any) => ({ ...o, status: stage }))
-
-    // Reload updates to include the new one at the top
-    const { data: updRows } = await (supabase as any)
-      .from('production_updates')
-      .select('id, stage, status, description, photos, created_at')
-      .eq('order_id', order.id)
-    if (Array.isArray(updRows)) {
-      const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      setUpdates(sorted as any)
-    }
+    // Update order status via Node API
+    await updateOrderStatus(order.id, stage as any)
+    // Create production update via Node API
+    await createProductionUpdate({ 
+      order_id: order.id, 
+      stage, 
+      status: status || 'updated', 
+      title: titleCase(stage) + ' update',
+      description: description || null, 
+      photos 
+    })
+    // Refresh order and updates
+    const refreshed = await fetchOrder(order.id)
+    if (refreshed) setOrder(refreshed)
+    const upd = await fetchProductionUpdates(order.id)
+    if (Array.isArray(upd)) setUpdates(upd as any)
   }
 
   const fetchUpdates = async (orderData: any) => {
     if (!orderData?.id) return
-    const { data: updRows } = await (supabase as any)
-      .from('production_updates')
-      .select('id, stage, status, description, photos, created_at')
-      .eq('order_id', orderData.id)
-    if (Array.isArray(updRows)) {
-      const sorted = [...updRows].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      setUpdates(sorted as any)
-    }
+    const upd = await fetchProductionUpdates(orderData.id)
+    if (Array.isArray(upd)) setUpdates(upd as any)
   }
 
-  const fetchArtworkUrls = async (orderData: any) => {
-    if (!orderData?.artwork_files?.length) return
-    const urls: Record<string, string> = {}
-    for (const filePath of orderData.artwork_files) {
-      try {
-        const { data } = await supabase.storage
-          .from('artwork')
-          .createSignedUrl(filePath, 3600)
-        if (data?.signedUrl) {
-          urls[filePath] = data.signedUrl
-        }
-      } catch (e) {
-        console.warn('Failed to get signed URL for:', filePath, e)
-      }
-    }
-    setArtworkUrls(urls)
+  const fetchArtworkUrls = async (_orderData: any) => {
+    // No-op: artwork files are not stored in Supabase anymore; absolute URLs will display directly.
+    setArtworkUrls((prev) => prev)
   }
 
   useEffect(() => {
@@ -257,38 +272,21 @@ const OrderDetails = () => {
       }
       try {
         setLoading(true)
-        const { data: orderData, error: orderErr } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('id', id)
-          .single()
-        if (orderErr) throw orderErr
-        setOrder(orderData)
+        const ord = await fetchOrder(id)
+        if (!ord) throw new Error('Order not found')
+        setOrder(ord)
 
-        const { data: paymentRows, error: payErr } = await (supabase as any)
-          .from('payments')
-          .select('phase, amount_cents, status')
-          .eq('order_id', id)
-        if (payErr) throw payErr
-        const byPhase: any = { deposit: null, balance: null }
-        ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
-        setPayments(byPhase)
+        // Optional: fetch payments from Node (admin-only endpoint may return empty)
+        try { await fetchOrderPayments(id) } catch {}
+        try { await fetchOrderTimeline(id) } catch {}
 
-        await fetchUpdates(orderData)
-        await fetchArtworkUrls(orderData)
+        await fetchUpdates(ord)
+        await fetchArtworkUrls(ord)
 
-        // Determine admin/moderator role
-        if (user?.id) {
-          const { data: profile } = await (supabase as any)
-            .from('profiles')
-            .select('role')
-            .eq('user_id', user.id)
-            .maybeSingle()
-          const role = (profile as any)?.role
-          setIsAdmin(role === 'admin' || role === 'moderator')
-        } else {
-          setIsAdmin(false)
-        }
+        // Determine admin role from Node auth user
+        setIsAdmin(user?.role === 'admin')
+        // initialize composer stage to current order status
+        setComposer(prev => ({ ...prev, stage: ord.status }))
       } catch (e: any) {
         console.error(e)
         toast.error(serverErrorMessage(e, 'Failed to load order'))
@@ -299,103 +297,17 @@ const OrderDetails = () => {
     run()
   }, [id])
 
-  // Realtime subscriptions: keep payments and order status in sync
+  // Realtime subscriptions removed for Node API version (optional to add later).
+  useEffect(() => { return }, [id])
+
+  // On return from Stripe, give immediate feedback and clear params (Node API handles lifecycle).
   useEffect(() => {
-    // Guard: skip realtime when id is placeholder 'new' or missing
-    if (!id || id === 'new') return
-
-    const refetchPayments = async () => {
-      const { data: paymentRows } = await (supabase as any)
-        .from('payments')
-        .select('phase, amount_cents, status')
-        .eq('order_id', id)
-      const byPhase: any = { deposit: null, balance: null }
-      ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
-      setPayments(byPhase)
-    }
-
-    // Set up real-time subscriptions for live updates
-    const paymentSubscription = supabase
-      .channel(`payments-${id}`)
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'payments',
-          filter: `order_id=eq.${id}`
-        }, 
-        (payload) => {
-          // Update payment status in real-time
-          const updatedPayment = payload.new as any
-          if (updatedPayment) {
-            setPayments(prev => ({
-              ...prev,
-              [updatedPayment.phase]: updatedPayment
-            }))
-          }
-        }
-      )
-      .subscribe()
-
-    const orderSubscription = supabase
-      .channel(`order-${id}`)
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'orders',
-          filter: `id=eq.${id}`
-        }, 
-        (payload) => {
-          // Update order status in real-time
-          const updatedOrder = payload.new as any
-          if (updatedOrder) {
-            setOrder(updatedOrder)
-          }
-        }
-      )
-      .subscribe()
-
-    // Cleanup subscriptions
-    return () => {
-      paymentSubscription.unsubscribe()
-      orderSubscription.unsubscribe()
-    }
-    const refetchOrder = async () => {
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('*, products(name, image_url)')
-        .eq('id', id)
-        .single()
-      if (orderData) setOrder(orderData)
-    }
-
-    const channel = (supabase as any)
-      .channel(`order-details-${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `order_id=eq.${id}` }, async () => {
-        await refetchPayments()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${id}` }, async () => {
-        await refetchOrder()
-      })
-      .subscribe()
-
-    return () => {
-      try { (supabase as any).removeChannel(channel) } catch {}
-    }
-  }, [id])
-
-  // On return from Stripe, poll until the indicated phase shows as succeeded.
-  useEffect(() => {
-    // Guard: skip Stripe polling when id is placeholder 'new' or missing
     if (!id || id === 'new') return
     const params = new URLSearchParams(location.search)
     const payment = params.get('payment') // success | cancelled
-    const phase = (params.get('phase') as 'deposit' | 'balance' | null)
-    const sessionId = params.get('session_id')
-    if (!payment || !phase) return
+    const phase = params.get('phase') // full_payment | shipping_fee
+    if (!payment) return
 
-    let cancelled = false
     const clearParams = () => {
       const url = new URL(window.location.href)
       url.searchParams.delete('payment')
@@ -403,109 +315,60 @@ const OrderDetails = () => {
       window.history.replaceState({}, '', url.toString())
     }
 
-    const poll = async () => {
-      // immediate feedback
+    ;(async () => {
       if (payment === 'cancelled') {
-        toast.error(`${phase === 'deposit' ? 'Deposit' : 'Balance'} payment was cancelled`)
+        toast.error(`${phase === 'shipping_fee' ? 'Shipping' : 'Order'} payment was cancelled`)
         clearParams()
         return
       }
-      toast.success('Payment received. Finalizing your order...')
-
-      // If we have a session id, proactively mark payment as processing so UI doesn't show requires_payment_method
-      if (sessionId) {
-        try {
-          await (supabase as any)
-            .from('payments')
-            .update({ status: 'processing', stripe_checkout_session_id: sessionId })
-            .eq('order_id', id)
-            .eq('phase', phase)
-            .in('status', ['requires_payment_method', 'requires_action'])
-        } catch {}
+      try {
+        // Mark order as paid (server simulates finalization)
+        await OrderService.markOrderPaid(id as string)
+        toast.success('Payment received. Finalizing your order...')
+        // Refresh current order
+        const refreshed = await fetchOrder(id as string)
+        if (refreshed) setOrder(refreshed)
+      } catch (e) {
+        console.warn('Failed to mark order paid', e)
       }
-
-      const started = Date.now()
-      const timeoutMs = 60_000
-      const intervalMs = 1_000
-      let success = false
-      while (!cancelled && Date.now() - started < timeoutMs) {
-        const { data: paymentRows } = await (supabase as any)
-          .from('payments')
-          .select('phase, amount_cents, status')
-          .eq('order_id', id)
-        const byPhase: any = { deposit: null, balance: null }
-        ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
-        setPayments(byPhase)
-        if (byPhase[phase]?.status === 'succeeded') {
-          toast.success(`${phase === 'deposit' ? 'Deposit' : 'Balance'} marked as paid`)
-          // Also refresh order to reflect any status advancement set by webhook
-          try {
-            const { data: orderData } = await supabase
-              .from('orders')
-              .select('*')
-              .eq('id', id)
-              .single()
-            if (orderData) setOrder(orderData)
-          } catch {}
-          success = true
-          break
-        }
-        await new Promise(r => setTimeout(r, intervalMs))
-      }
-
-      // Fallback: if polling timed out, invoke reconcile-payment edge function
-      if (!success && !cancelled) {
-        try {
-          await (supabase as any).functions.invoke('reconcile-payment', {
-            body: { session_id: sessionId, order_id: id, phase },
-          })
-          // refetch payments
-          const { data: paymentRows } = await (supabase as any)
-            .from('payments')
-            .select('phase, amount_cents, status')
-            .eq('order_id', id)
-          const byPhase: any = { deposit: null, balance: null }
-          ;(paymentRows || []).forEach((p: PaymentRow) => { byPhase[p.phase] = p })
-          setPayments(byPhase)
-          if (byPhase[phase]?.status === 'succeeded') {
-            toast.success('Payment reconciled successfully')
-            try {
-              const { data: orderData } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('id', id)
-                .single()
-              if (orderData) setOrder(orderData)
-            } catch {}
-          }
-        } catch (e) {
-          console.warn('Reconcile fallback failed', e)
-        }
-      }
-
       clearParams()
-    }
-
-    poll()
-    return () => { cancelled = true }
+    })()
   }, [id, location.search])
 
-  const handlePay = async (phase: 'deposit' | 'balance') => {
+  const handlePay = async () => {
     if (!user) {
       return toast.error('Please sign in to pay for your order')
     }
     if (!id) return
     try {
-      await startCheckout(id, phase)
+      await startCheckout(id, 'full_payment')
     } catch {}
   }
 
   return (
     <div className="relative min-h-screen bg-background">
+      <Helmet>
+        <title>{order ? `Order ${order.order_number || order.id} • Prism Craft` : 'Order Details • Prism Craft'}</title>
+        <meta name="description" content="View your order details, payment status, shipping information, and production updates." />
+      </Helmet>
       <Navigation />
       <div className="relative z-10 px-6 max-w-6xl mx-auto py-8">
         <ScrollReveal variant="fade-up" distancePx={18}>
-          <h1 className="text-3xl font-medium text-foreground mb-4">Order Details</h1>
+          <div className="mb-2">
+            <a href="/dashboard" className="text-sm text-muted-foreground underline hover:text-foreground">← Back to dashboard</a>
+          </div>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-3xl font-medium text-foreground">Order Details</h1>
+            {isAdmin && order?.id ? (
+              <a
+                href={`/admin/orders/${order.id}`}
+                className="text-sm text-primary underline"
+                title="Open in admin"
+              >
+                Open in admin
+              </a>
+            ) : null}
+          </div>
         </ScrollReveal>
         {loading ? (
           <p className="text-muted-foreground">Loading...</p>
@@ -526,15 +389,35 @@ const OrderDetails = () => {
                   <div className="border-t pt-4">
                     <h3 className="font-medium mb-2">Product</h3>
                     <div className="flex items-start gap-3 text-sm">
-                      {order.products?.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={order.products.image_url} alt={order.products?.name || 'Product'} className="w-16 h-16 object-cover rounded" />
-                      ) : null}
                       <div>
-                        <div className="text-foreground">{order.products?.name || 'Custom Product'}</div>
+                        <div className="text-foreground">{order.product_name || 'Custom Product'}</div>
                         <div className="text-muted-foreground">Quantity: {order.quantity}</div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h3 className="font-medium mb-2">Design preview</h3>
+                    {order.mockup_images && (order.mockup_images.front || order.mockup_images.back) ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {order.mockup_images.front ? (
+                          <div className="border rounded p-2 bg-muted/30">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={order.mockup_images.front} alt="Front mockup" className="w-full h-28 object-cover rounded" />
+                            <div className="mt-1 text-xs text-muted-foreground">Front</div>
+                          </div>
+                        ) : null}
+                        {order.mockup_images.back ? (
+                          <div className="border rounded p-2 bg-muted/30">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={order.mockup_images.back} alt="Back mockup" className="w-full h-28 object-cover rounded" />
+                            <div className="mt-1 text-xs text-muted-foreground">Back</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No design previews.</div>
+                    )}
                   </div>
 
                   <div className="border-t pt-4">
@@ -603,12 +486,14 @@ const OrderDetails = () => {
 
                   <div className="border-t pt-4">
                     <h3 className="font-medium mb-2">Customization</h3>
-                    {order.customization_details ? (
+                    {order.customization_details || Array.isArray(order.print_locations) ? (
                       <div className="space-y-4">
                         {(() => {
-                          const details = order.customization_details as any
-                          const baseColor = details?.baseColor
-                          const prints: any[] = Array.isArray(details?.prints) ? details.prints : []
+                          const details = (order.customization_details as any) || {}
+                          const baseColor = details?.baseColor ?? (order.customization?.baseColor)
+                          const prints: any[] = Array.isArray(details?.prints)
+                            ? details.prints
+                            : (Array.isArray(order.print_locations) ? order.print_locations : [])
                           return (
                             <>
                               <div className="flex items-center gap-3 text-sm">
@@ -628,15 +513,6 @@ const OrderDetails = () => {
                                           <div className="text-muted-foreground">Method: {p?.method || '—'}</div>
                                           {p?.size ? (
                                             <div className="text-muted-foreground">Size: {p.size?.widthIn} × {p.size?.heightIn} in</div>
-                                          ) : null}
-                                          <div className="text-muted-foreground">Colors: {p?.colorCount ?? (Array.isArray(p?.colors) ? p.colors.length : '—')}</div>
-                                          {Array.isArray(p?.colors) && p.colors.length ? (
-                                            <div className="flex items-center gap-1 mt-1">
-                                              {p.colors.slice(0,6).map((c: string, i: number) => (
-                                                <span key={i} className="w-3.5 h-3.5 rounded-full border" style={{ backgroundColor: colorSwatch(c) }} title={c} />
-                                              ))}
-                                              {p.colors.length > 6 ? <span className="text-xs text-muted-foreground">+{p.colors.length - 6}</span> : null}
-                                            </div>
                                           ) : null}
                                           {p?.customText ? (
                                             <div className="pt-1"><span className="text-muted-foreground">Text:</span> {p.customText}</div>
@@ -662,79 +538,139 @@ const OrderDetails = () => {
                   </div>
 
                   <div className="border-t pt-4">
-                    <h3 className="font-medium mb-2">Notes</h3>
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">{order.notes || '—'}</div>
-                  </div>
-
-                  <div className="mt-1 text-xs text-muted-foreground">40% deposit now, 60% before shipping.</div>
+                  <h3 className="font-medium mb-2">Notes</h3>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap">{order.notes || '—'}</div>
                 </div>
+
+                <div className="text-xs text-muted-foreground">You will be charged now.</div>
+              </div>
+            </Card>
+          </ScrollReveal>
+
+          <div className="space-y-4">
+            <ScrollReveal asChild variant="fade-up" delayMs={60}>
+              <Card className="p-4">
+                <h3 className="font-medium mb-3">Status Timeline</h3>
+                <ol className="relative border-l pl-4">
+                  {statusSteps.map((step, idx) => {
+                    const done = idx < currentStepIndex
+                    const active = idx === currentStepIndex
+                    const cancelled = order.status === 'cancelled'
+                    const dotClass = cancelled && active ? 'bg-destructive' : done || active ? 'bg-primary' : 'bg-muted-foreground/30'
+                    return (
+                      <li key={step.key} className="mb-4 ml-2">
+                        <div className={`w-3 h-3 rounded-full ${dotClass} absolute -left-[7px] mt-1.5`}></div>
+                        <div className={`text-sm ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</div>
+                      </li>
+                    )
+                  })}
+                  {order.status === 'cancelled' && (
+                    <li className="ml-2">
+                      <div className="w-3 h-3 rounded-full bg-destructive absolute -left-[7px] mt-1.5"></div>
+                      <div className="text-sm text-destructive">Cancelled</div>
+                    </li>
+                  )}
+                </ol>
               </Card>
             </ScrollReveal>
 
-            <div className="space-y-4">
-              <ScrollReveal asChild variant="fade-up" delayMs={60}>
+            <ScrollReveal asChild variant="fade-up" delayMs={150}>
+              <Card className="p-4 space-y-3">
+                <h3 className="font-medium">Actions</h3>
+                <div className="text-xs text-muted-foreground">We’ll notify our team with your message.</div>
+                <textarea
+                  className="w-full border rounded p-2 text-sm"
+                  placeholder="Add a note (optional)"
+                  value={actionMessage}
+                  onChange={(e) => setActionMessage(e.target.value)}
+                  rows={3}
+                />
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={handleRequestChanges} disabled={actionBusy}>
+                    {actionBusy ? 'Sending…' : 'Request changes'}
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleApproveDesign} disabled={actionBusy}>
+                    {actionBusy ? 'Sending…' : 'Approve design'}
+                  </Button>
+                </div>
+                {!SUPPORT_EMAIL ? (
+                  <div className="text-xs text-muted-foreground">Support email not configured. You can email us directly with your order number.</div>
+                ) : null}
+              </Card>
+            </ScrollReveal>
+              <ScrollReveal asChild variant="fade-up" delayMs={90}>
                 <Card className="p-4">
-                  <h3 className="font-medium mb-3">Status Timeline</h3>
-                  <ol className="relative border-l pl-4">
-                    {statusSteps.map((step, idx) => {
-                      const done = idx < currentStepIndex
-                      const active = idx === currentStepIndex
-                      const cancelled = order.status === 'cancelled'
-                      const dotClass = cancelled && active ? 'bg-destructive' : done || active ? 'bg-primary' : 'bg-muted-foreground/30'
-                      return (
-                        <li key={step.key} className="mb-4 ml-2">
-                          <div className={`w-3 h-3 rounded-full ${dotClass} absolute -left-[7px] mt-1.5`}></div>
-                          <div className={`text-sm ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</div>
-                        </li>
-                      )
-                    })}
-                    {order.status === 'cancelled' && (
-                      <li className="ml-2">
-                        <div className="w-3 h-3 rounded-full bg-destructive absolute -left-[7px] mt-1.5"></div>
-                        <div className="text-sm text-destructive">Cancelled</div>
-                      </li>
-                    )}
-                  </ol>
+                  <h3 className="font-medium mb-3">Shipping</h3>
+                  <div className="grid gap-2 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Address</div>
+                      <pre className="text-sm whitespace-pre-wrap leading-relaxed">{formatAddress(order.shipping_address)}</pre>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1">Tracking</div>
+                        {order.tracking_number ? (
+                          <a className="text-primary underline" href={trackingUrl(order.tracking_number)} target="_blank" rel="noreferrer">{order.tracking_number}</a>
+                        ) : (
+                          <div className="text-muted-foreground">—</div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1">Estimated delivery</div>
+                        <div className="text-muted-foreground">{order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : '—'}</div>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </ScrollReveal>
               <ScrollReveal asChild variant="fade-up" delayMs={120}>
                 <Card className="p-4 space-y-3">
-                  <h3 className="font-medium">Payments</h3>
+                  <h3 className="font-medium">Payment</h3>
                   <div className="flex items-center justify-between text-sm">
                     <div>
-                      <div>Deposit (40%)</div>
-                      <div className="text-muted-foreground">{currency(totals.depositCents)}</div>
+                      <div>Order total</div>
+                      <div className="text-muted-foreground">{currency(totals.totalCents)}</div>
                     </div>
                     {(() => {
-                      const s = payments.deposit?.status
-                      const disabled = s === 'succeeded' || s === 'processing' || s === 'requires_action'
-                      const label = s === 'succeeded' ? 'Paid' : s === 'processing' ? 'Processing…' : s === 'requires_action' ? 'Confirming…' : 'Pay Deposit'
+                      const isPaid = order?.status !== 'submitted'
+                      const label = isPaid ? 'Paid' : 'Pay Now'
                       return (
-                        <Button size="sm" onClick={() => handlePay('deposit')} disabled={disabled}>
-                          {label}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={handlePay} disabled={isPaid}>
+                            {label}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleGetInvoice} disabled={invoiceBusy}>
+                            {invoiceBusy ? 'Creating…' : 'Get invoice'}
+                          </Button>
+                        </div>
                       )
                     })()}
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div>
-                      <div>Balance (60%)</div>
-                      <div className="text-muted-foreground">{currency(totals.balanceCents)}</div>
-                    </div>
-                    {(() => {
-                      const s = payments.balance?.status
-                      const disabled = s === 'succeeded' || s === 'processing' || s === 'requires_action'
-                      const label = s === 'succeeded' ? 'Paid' : s === 'processing' ? 'Processing…' : s === 'requires_action' ? 'Confirming…' : 'Pay Balance'
-                      return (
-                        <Button size="sm" variant="outline" onClick={() => handlePay('balance')} disabled={disabled}>
-                          {label}
-                        </Button>
-                      )
-                    })()}
-                  </div>
-                  <div className="text-xs text-muted-foreground pt-2 border-t">
-                    Total: ${totals.totalDollars.toFixed(2)}
-                  </div>
+                  {(() => {
+                    const arr = order?.id ? (paymentsMap[order.id] || []) : []
+                    if (!arr.length) return null
+                    return (
+                      <div className="pt-2 border-t">
+                        <div className="text-sm font-medium mb-2">Payment history</div>
+                        <div className="space-y-2">
+                          {arr.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between text-sm">
+                              <div>
+                                <div className="text-foreground">{titleCase(p.status)}</div>
+                                <div className="text-xs text-muted-foreground">{p.paid_at ? new Date(p.paid_at).toLocaleString() : new Date(p.created_at).toLocaleString()}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{currency(p.amount_cents)}</div>
+                                {p.stripe_checkout_session_id ? (
+                                  <a className="text-xs text-primary underline" href={`https://dashboard.stripe.com/payments/${p.stripe_checkout_session_id}`} target="_blank" rel="noreferrer">Receipt</a>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </Card>
               </ScrollReveal>
 
@@ -772,6 +708,25 @@ const OrderDetails = () => {
                         ))}
                       </div>
                     </ScrollStagger>
+                  </Card>
+                </ScrollReveal>
+              )}
+
+              {order?.id && (timelineMap[order.id]?.length || 0) > 0 && (
+                <ScrollReveal asChild variant="fade-up" delayMs={200}>
+                  <Card className="p-4">
+                    <h3 className="font-medium mb-2">Activity</h3>
+                    <div className="space-y-2 text-sm">
+                      {timelineMap[order.id]!.map(ev => (
+                        <div key={ev.id} className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-foreground">{titleCase(ev.event_type)}</div>
+                            {ev.description ? <div className="text-muted-foreground">{ev.description}</div> : null}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{new Date(ev.created_at).toLocaleString()}</div>
+                        </div>
+                      ))}
+                    </div>
                   </Card>
                 </ScrollReveal>
               )}

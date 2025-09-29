@@ -1,0 +1,70 @@
+tags:
+  - name: Profile
+    description: User profile separate from auth account
+paths:
+  /api/profile:
+    get:
+      tags: [Profile]
+      summary: Get current user's profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Returns the profile document or empty object if none exists yet
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Profile'
+                  - type: object
+              examples:
+                none:
+                  summary: No profile yet
+                  value: {}
+                profile:
+                  summary: Existing profile
+                  value:
+                    id: pro_1
+                    userId: usr_12345
+                    firstName: Ahmed
+                    lastName: Ali
+                    role: customer
+                    phone: "+1-313-555-0123"
+        '401': { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [Profile]
+      summary: Upsert and update profile fields
+      description: If no profile exists, it will be created. If `companyName` is provided, a company will be created or linked by name.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName: { type: string }
+                lastName: { type: string }
+                phone: { type: string }
+                companyName: { type: string }
+            example:
+              firstName: Ahmed
+              lastName: Ali
+              phone: "+1-313-555-0123"
+              companyName: City Youth League
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+              example:
+                id: pro_1
+                userId: usr_12345
+                firstName: Ahmed
+                lastName: Ali
+                role: customer
+                phone: "+1-313-555-0123"
+        '401': { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

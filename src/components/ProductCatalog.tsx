@@ -1,19 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listProducts, type ApiProduct } from "@/lib/services/productService";
+import { listByProductIds, type ApiVariant } from "@/lib/services/variantService";
 
-type ProductRow = {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  base_price: number | null;
-  image_url: string | null;
-  available_colors: string[] | null;
-};
+type ProductRow = ApiProduct;
 
 type VariantRow = {
   id: string;
@@ -28,57 +21,59 @@ type VariantRow = {
 };
 
 const ProductCatalog = () => {
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlCategory = searchParams.get('category') || 'All';
+  const urlSearch = searchParams.get('search') || '';
+  const [selectedCategory, setSelectedCategory] = useState(urlCategory);
 
-  const { data: productsData } = useQuery<ProductRow[]>({
+  const { data: productsData, isLoading, error } = useQuery<ProductRow[]>({
     queryKey: ["catalog-products"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, description, category, base_price, image_url, available_colors, customization_options")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      // Filter only active products
-      const activeProducts = (data || []).filter(p => {
-        const opts = p.customization_options as any;
-        return opts?.active === true || opts?.active === 'true';
-      });
-      return activeProducts as ProductRow[];
+      console.log('ProductCatalog: Fetching products...');
+      const items = await listProducts();
+      console.log('ProductCatalog: Received products:', items);
+      // Public endpoint only returns active; still filter defensively
+      return (items || []).filter(p => p.active !== false);
     },
   });
 
+  console.log('ProductCatalog: Rendering with data:', productsData, 'loading:', isLoading, 'error:', error);
+
+  // Keep local selectedCategory in sync with URL changes
+  useEffect(() => {
+    if (selectedCategory !== urlCategory) {
+      setSelectedCategory(urlCategory);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlCategory]);
+
   // Fetch all variants for listed products to compute color counts and swatches
-  const { data: variantsData } = useQuery<VariantRow[]>({
+  const { data: variantsData } = useQuery<ApiVariant[]>({
     enabled: !!productsData && productsData.length > 0,
     // keep key small to avoid deep type instantiation
     queryKey: ["catalog-variants", (productsData || []).map(p => p.id).join(",")],
     queryFn: async () => {
       const ids = (productsData || []).map(p => p.id);
-      if (ids.length === 0) return [] as VariantRow[];
-      const { data, error } = await (supabase as any)
-        .from("product_variants")
-        .select("id, product_id, color_name, color_hex, active, image_url, front_image_url, back_image_url, sleeve_image_url")
-        .in("product_id", ids);
-      if (error) throw error;
-      return ((data as unknown) as VariantRow[]) || [];
+      if (ids.length === 0) return [] as ApiVariant[];
+      return await listByProductIds(ids);
     },
   });
 
   // Map product_id -> distinct active colors with hex
   const colorsByProduct = useMemo(() => {
     const map = new Map<string, { name: string; hex: string }[]>();
-    const list = variantsData || [];
+    const list = (variantsData || []) as ApiVariant[];
     for (const v of list) {
       if (v.active === false) continue;
-      const name = (v.color_name || "").trim();
+      const name = (v.colorName || "").trim();
       if (!name) continue;
-      const hex = v.color_hex || "#ffffff";
-      const arr = map.get(v.product_id) || [];
+      const hex = v.colorHex || "#ffffff";
+      const arr = map.get(v.productId) || [];
       // ensure uniqueness by name (case-insensitive)
       if (!arr.some(c => c.name.toLowerCase() === name.toLowerCase())) {
         arr.push({ name, hex });
-        map.set(v.product_id, arr);
+        map.set(v.productId, arr);
       }
     }
     return map;
@@ -92,21 +87,48 @@ const ProductCatalog = () => {
 
   const filteredProducts = useMemo(() => {
     const list = productsData || [];
-    return selectedCategory === "All" ? list : list.filter(p => (p.category || "") === selectedCategory);
-  }, [productsData, selectedCategory]);
+    const byCategory = selectedCategory === "All" ? list : list.filter(p => (p.category || "") === selectedCategory);
+    const q = urlSearch.trim().toLowerCase();
+    if (!q) return byCategory;
+    return byCategory.filter(p => {
+      const name = (p.name || '').toLowerCase();
+      const desc = (p.description || '').toLowerCase();
+      return name.includes(q) || desc.includes(q);
+    });
+  }, [productsData, selectedCategory, urlSearch]);
 
   // Compute a fallback cover per product from its variants
   const coverByProduct = useMemo(() => {
     const map = new Map<string, string | null>();
-    const list = variantsData || [];
+    const list = (variantsData || []) as ApiVariant[];
     for (const v of list) {
       if (v.active === false) continue;
-      const best = v.front_image_url || v.image_url || v.back_image_url || v.sleeve_image_url || null;
+      const best = v.frontImageUrl || v.imageUrl || v.backImageUrl || v.sleeveImageUrl || null;
       if (!best || best === '/placeholder.svg') continue; // Skip placeholder images
-      if (!map.has(v.product_id)) map.set(v.product_id, best);
+      if (!map.has(v.productId)) map.set(v.productId, best);
     }
     return map;
   }, [variantsData]);
+
+  if (isLoading) {
+    return (
+      <section id="products" className="py-16 bg-background">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <div className="text-lg text-muted-foreground">Loading products...</div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section id="products" className="py-16 bg-background">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <div className="text-lg text-red-600">Error loading products: {String(error)}</div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="products" className="py-16 bg-background">
@@ -126,7 +148,22 @@ const ProductCatalog = () => {
             <Button
               key={category}
               variant={selectedCategory === category ? "default" : "outline"}
-              onClick={() => setSelectedCategory(category)}
+              onClick={() => {
+                setSelectedCategory(category);
+                const next = new URLSearchParams(searchParams);
+                if (category === 'All') {
+                  next.delete('category');
+                } else {
+                  next.set('category', category);
+                }
+                // Preserve search term if present
+                if (urlSearch) {
+                  next.set('search', urlSearch);
+                } else {
+                  next.delete('search');
+                }
+                setSearchParams(next, { replace: true });
+              }}
               className="rounded-full"
             >
               {category}
@@ -145,7 +182,7 @@ const ProductCatalog = () => {
                 {(() => {
                   // Prefer a variant-derived front image first; fallback to product.image_url
                   const variantCover = coverByProduct.get(product.id);
-                  const productCover = product.image_url !== '/placeholder.svg' ? product.image_url : null;
+                  const productCover = product.imageUrl && product.imageUrl !== '/placeholder.svg' ? product.imageUrl : null;
                   const cover = variantCover || productCover || null;
                   return cover ? (
                     <img src={cover} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
@@ -165,7 +202,7 @@ const ProductCatalog = () => {
                 
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-2xl font-medium text-foreground">
-                    ${Number(product.base_price || 0).toFixed(2)}
+                    ${Number(product.basePrice || 0).toFixed(2)}
                     <span className="text-sm text-muted-foreground font-normal">/piece</span>
                   </div>
                   <div className="flex items-center gap-2">

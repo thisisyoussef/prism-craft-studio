@@ -1,0 +1,63 @@
+tags:
+  - name: Pricing
+    description: Pricing rules used to calculate quotes
+paths:
+  /api/pricing:
+    get:
+      tags: [Pricing]
+      summary: List active pricing rules
+      security: []
+      responses:
+        '200':
+          description: Pricing rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PricingRule' }
+              example:
+                - id: pr_66de700fa9c1
+                  productType: hoodie
+                  customizationType: screen_print
+                  quantityMin: 50
+                  quantityMax: 99
+                  basePrice: 25
+                  customizationCost: 3
+                  discountPercentage: 5
+                  active: true
+    post:
+      tags: [Pricing]
+      summary: Create pricing rule (test env only)
+      description: Only available when NODE_ENV === 'test'. Returns 403 otherwise.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingRule'
+            example:
+              productType: hoodie
+              customizationType: screen_print
+              quantityMin: 50
+              quantityMax: 99
+              basePrice: 25
+              customizationCost: 3
+              discountPercentage: 5
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PricingRule' }
+              example:
+                id: pr_66de700fa9c1
+                productType: hoodie
+                customizationType: screen_print
+                quantityMin: 50
+                quantityMax: 99
+                basePrice: 25
+                customizationCost: 3
+                discountPercentage: 5
+                active: true
+        '403': { description: Forbidden, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

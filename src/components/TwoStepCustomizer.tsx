@@ -2,6 +2,7 @@ import { useState } from 'react'
 import CustomizerStep1 from './CustomizerStep1'
 import CustomizerStep2 from './CustomizerStep2'
 import { usePricingStore } from '@/lib/store'
+import toast from 'react-hot-toast'
 
 const TwoStepCustomizer = () => {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1)
@@ -19,6 +20,17 @@ const TwoStepCustomizer = () => {
     
     // Validate required fields - let Step1 component handle its own validation
     // The button is already disabled based on isDesignComplete logic
+
+    // Additional guard: require artwork for each active print placement
+    const allActiveHaveArtwork = prints
+      .filter(p => p.active !== false)
+      .every(p => Array.isArray(p.artworkFiles) && p.artworkFiles.length > 0 && !!p.artworkFiles[0])
+
+    if (!allActiveHaveArtwork) {
+      toast.error('Upload artwork to each print placement to continue')
+      return
+    }
+
     setCurrentStep(2)
   }
 

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/lib/profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { OrderService } from "@/lib/services/orderService";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { OrderService } from "@/lib/services/orderServiceNode";
 import type { Order, OrderStatus, OrderPriority } from "@/lib/types/order";
+import Navigation from "@/components/Navigation";
 
 type Range = { from?: Date; to?: Date };
 
@@ -24,21 +26,11 @@ interface OrderRow extends Order {
 }
 
 const statuses: OrderStatus[] = [
-  "draft",
-  "quote_requested",
-  "quoted",
-  "deposit_pending",
-  "deposit_paid",
-  "in_production",
-  "quality_check",
-  "balance_pending",
-  "balance_paid",
-  "ready_to_ship",
-  "shipped",
-  "delivered",
-  "completed",
-  "cancelled",
-  "refunded",
+  'submitted',
+  'paid',
+  'in_production',
+  'shipping',
+  'delivered',
 ];
 
 const priorities: OrderPriority[] = [
@@ -62,17 +54,17 @@ export default function AdminOrders() {
     queryKey: ["admin-orders", status, customer, range?.from?.toISOString(), range?.to?.toISOString()],
     enabled: !!profile && !loadingProfile,
     queryFn: async () => {
-      const allOrders = await OrderService.getOrders();
-      
+      const allOrders = await OrderService.getUserOrders();
+
       let filteredOrders = allOrders;
-      
+
       // Apply filters
       if (status && status !== 'all') {
         filteredOrders = filteredOrders.filter(o => o.status === status);
       }
       if (customer) {
         filteredOrders = filteredOrders.filter(o => 
-          o.order_number?.toLowerCase().includes(customer.toLowerCase()) ||
+          (o.order_number || '').toLowerCase().includes(customer.toLowerCase()) ||
           o.id.toLowerCase().includes(customer.toLowerCase())
         );
       }
@@ -82,52 +74,12 @@ export default function AdminOrders() {
       if (range?.to) {
         filteredOrders = filteredOrders.filter(o => new Date(o.created_at) <= range.to!);
       }
-      
+
       return filteredOrders as OrderRow[];
     },
   });
 
-  // Batch-load customer profiles for display
-  const [profilesMap, setProfilesMap] = useState<Record<string, { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }>>({});
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const ids = Array.from(new Set((orders || []).map(o => o.user_id))).filter(Boolean);
-        if (!ids.length) { setProfilesMap({}); return }
-        const { data, error } = await (supabase as any)
-          .from('profiles')
-          .select('user_id, first_name, last_name, email, phone')
-          .in('user_id', ids);
-        if (!error && Array.isArray(data)) {
-          const next: any = {};
-          for (const p of data) next[p.user_id] = { first_name: p.first_name, last_name: p.last_name, email: p.email, phone: p.phone };
-          setProfilesMap(next);
-        }
-      } catch {}
-    }
-    run()
-  }, [JSON.stringify((orders || []).map(o => o.user_id).sort())]);
-
-  // Batch-load products for display (fallback if embed fails)
-  const [productsMap, setProductsMap] = useState<Record<string, { name: string | null; image_url: string | null }>>({});
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const ids = Array.from(new Set((orders || []).map(o => o.product_id))).filter(Boolean) as string[];
-        if (!ids.length) { setProductsMap({}); return }
-        const { data, error } = await (supabase as any)
-          .from('products')
-          .select('id, name, image_url')
-          .in('id', ids);
-        if (!error && Array.isArray(data)) {
-          const next: any = {};
-          for (const p of data) next[p.id] = { name: p.name, image_url: p.image_url };
-          setProductsMap(next);
-        }
-      } catch {}
-    }
-    run()
-  }, [JSON.stringify((orders || []).map(o => o.product_id).sort())]);
+  // Removed Supabase batch profile/product lookups. We display available order fields.
 
   // Inline edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -169,18 +121,19 @@ export default function AdminOrders() {
       }
       
       if (Object.keys(updates).length > 0) {
+        // Update order (status updates go through status endpoint internally)
         await OrderService.updateOrder(selected.id, updates);
       }
       
       // If status changed, create a production update with the notes
       if (updates.status && updates.status !== selected.status) {
-        // Note: We'll need to add this method to OrderService
-        console.log('Status changed, would create production update:', {
+        await OrderService.createProductionUpdate({
           order_id: selected.id,
           stage: updates.status,
           status: 'updated',
-          description: editNotes || `Order status changed to ${updates.status.replace(/_/g, ' ')}`,
-          visible_to_customer: true
+          title: `${String(updates.status).split('_').join(' ')} update`,
+          description: editNotes || `Order status changed to ${String(updates.status).replace(/_/g, ' ')}`,
+          visible_to_customer: true,
         });
       }
     },
@@ -195,20 +148,18 @@ export default function AdminOrders() {
   const openEdit = (o: OrderRow) => {
     setSelected(o);
     setEditStatus(o.status || undefined);
-    setEditNotes(o.notes || '');
+    setEditNotes(o.admin_notes || '');
     setEditLabels((o.labels || []).join(', '));
     setEditOpen(true);
   };
 
   const statusColor = (s?: string | null) => {
     switch (s) {
-      case 'draft': return 'bg-gray-200 text-gray-900';
-      case 'pending': return 'bg-amber-200 text-amber-900';
-      case 'confirmed': return 'bg-blue-200 text-blue-900';
+      case 'submitted': return 'bg-amber-200 text-amber-900';
+      case 'paid': return 'bg-blue-200 text-blue-900';
       case 'in_production': return 'bg-purple-200 text-purple-900';
-      case 'shipped': return 'bg-cyan-200 text-cyan-900';
+      case 'shipping': return 'bg-cyan-200 text-cyan-900';
       case 'delivered': return 'bg-green-200 text-green-900';
-      case 'cancelled': return 'bg-red-200 text-red-900';
       default: return 'bg-muted text-foreground';
     }
   };
@@ -217,27 +168,35 @@ export default function AdminOrders() {
     const list = orders || [];
     const totalRevenue = list.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
     const inProd = list.filter((o) => o.status === "in_production").length;
-    const open = list.filter((o) => !["delivered", "cancelled"].includes(o.status || '')).length;
+    const open = list.filter((o) => (o.status || '') !== 'delivered').length;
     return { count: list.length, revenue: totalRevenue, inProd, open };
   }, [orders]);
 
   if (loadingProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+      </>
     );
   }
 
   if (profile?.role !== "admin") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-muted-foreground">You do not have access to this page.</p>
-        <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
-      </div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-muted-foreground">You do not have access to this page.</p>
+          <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <>
+      <Navigation />
+      <div className="min-h-screen">
       {error ? (
         <div className="mb-4 text-sm text-red-600">
           Failed to load orders: {(error as any)?.message || 'Unknown error'}
@@ -283,14 +242,37 @@ export default function AdminOrders() {
             <label className="text-xs text-muted-foreground">Customer</label>
             <Input value={customer} onChange={(e) => setCustomer(e.currentTarget.value)} placeholder="Search..." className="w-full" />
           </div>
-          {/* TODO: Add proper date range picker UI. For now, manual ISO input placeholders. */}
-          <div>
-            <label className="text-xs text-muted-foreground">From</label>
-            <Input className="w-full" type="datetime-local" onChange={(e) => setRange((r) => ({ ...(r||{}), from: e.currentTarget.value ? new Date(e.currentTarget.value) : undefined }))} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">To</label>
-            <Input className="w-full" type="datetime-local" onChange={(e) => setRange((r) => ({ ...(r||{}), to: e.currentTarget.value ? new Date(e.currentTarget.value) : undefined }))} />
+          <div className="sm:col-span-2">
+            <label className="text-xs text-muted-foreground">Date range</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  {range?.from ? (
+                    range?.to ? (
+                      `${format(range.from, 'yyyy-MM-dd')} – ${format(range.to, 'yyyy-MM-dd')}`
+                    ) : (
+                      `${format(range.from, 'yyyy-MM-dd')}`
+                    )
+                  ) : (
+                    <span>Pick a date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0" align="start">
+                <div className="p-2">
+                  <Calendar
+                    mode="range"
+                    selected={range as any}
+                    onSelect={(r: any) => setRange(r)}
+                    numberOfMonths={2}
+                  />
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t mt-2">
+                    <Button variant="ghost" size="sm" onClick={() => setRange(undefined)}>Clear</Button>
+                    <Button size="sm" onClick={() => setRange(range)}>Apply</Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -330,11 +312,7 @@ export default function AdminOrders() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        {(() => { const p = profilesMap[o.user_id]; const name = [p?.first_name, p?.last_name].filter(Boolean).join(' '); return <span>{name || '—'}</span>; })()}
-                        <span className="text-xs text-muted-foreground">{profilesMap[o.user_id]?.email || '—'}</span>
-                        {profilesMap[o.user_id]?.phone ? (
-                          <span className="text-xs text-muted-foreground">{profilesMap[o.user_id]?.phone}</span>
-                        ) : null}
+                        <span>{(o.user_id || '—').slice(0, 8)}</span>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -349,10 +327,6 @@ export default function AdminOrders() {
                     <TableCell className="hidden md:table-cell">
                       <div className="flex flex-col gap-1">
                         <span className="font-medium">${Number(o.total_amount || 0).toFixed(2)}</span>
-                        <div className="text-xs text-muted-foreground">
-                          Deposit: ${Number(o.deposit_amount || 0).toFixed(2)} | 
-                          Balance: ${Number(o.balance_amount || 0).toFixed(2)}
-                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{format(new Date(o.created_at), 'yyyy-MM-dd')}</TableCell>
@@ -417,6 +391,7 @@ export default function AdminOrders() {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

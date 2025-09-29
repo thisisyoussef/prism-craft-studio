@@ -22,9 +22,17 @@
     "noFallthroughCasesInSwitch": false,
 
     "baseUrl": ".",
+    "types": ["vite/client", "vitest/globals"],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/tests/**",
+    "src/lib/services/orderService-old.ts",
+    "src/lib/services/orderService.ts"
+  ]
 }

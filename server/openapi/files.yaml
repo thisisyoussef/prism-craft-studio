@@ -1,0 +1,77 @@
+tags:
+  - name: Files
+    description: File uploads and retrieval
+paths:
+  /api/files/upload:
+    post:
+      tags: [Files]
+      summary: Upload a file
+      description: Uploads a single file associated with an order or a booking.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                orderId:
+                  type: string
+                bookingId:
+                  type: string
+                filePurpose:
+                  type: string
+                  enum: [artwork, tech_pack, reference, proof, final_design, production_update, mockup]
+            encoding:
+              file:
+                contentType: image/*,application/postscript,application/pdf
+            example:
+              orderId: 66de612b3f3cc9b4c7f5a9d2
+              filePurpose: artwork
+              file: (binary)
+      responses:
+        '200':
+          description: File uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fileUrl: { type: string }
+              example:
+                fileUrl: "/uploads/1725680000000-logo.png"
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/files/order/{id}:
+    get:
+      tags: [Files]
+      summary: List files for an order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Files
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FileUpload' }
+              example:
+                - id: "file_abc"
+                  fileName: logo.png
+                  fileSize: 102400
+                  fileType: image/png
+                  fileUrl: https://cdn.example.com/uploads/logo.png
+                  filePurpose: artwork
+                  uploadedAt: "2025-09-01T15:00:00.000Z"
+        '401': { $ref: '#/components/responses/Unauthorized' }

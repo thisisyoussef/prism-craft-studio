@@ -6,6 +6,7 @@ import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDo
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useProfile } from "@/lib/profile";
 import ModeToggle from "@/components/ModeToggle";
+import { featureFlags } from "@/lib/featureFlags";
 
 const Navigation = () => {
   const { user, signOut, initialize } = useAuthStore();
@@ -66,18 +67,28 @@ const Navigation = () => {
           >
             Samples
           </Link>
-          <Link 
-            to="/designers" 
-            className={`transition-colors duration-200 ${isActive('/designers') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
-          >
-            Designers
-          </Link>
+          {featureFlags.designers && (
+            <Link 
+              to="/designers" 
+              className={`transition-colors duration-200 ${isActive('/designers') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
+            >
+              Designers
+            </Link>
+          )}
           <Link 
             to="/case-studies" 
             className={`transition-colors duration-200 ${isActive('/case-studies') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
           >
             Case Studies
           </Link>
+          {featureFlags.findOrder && (
+            <Link 
+              to="/find-order" 
+              className={`transition-colors duration-200 ${isActive('/find-order') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
+            >
+              Find order
+            </Link>
+          )}
         </div>
         
         <div className="flex items-center gap-2">
@@ -86,12 +97,10 @@ const Navigation = () => {
             <div className="flex items-center gap-3">
               <div className="hidden md:flex items-center gap-2 text-sm">
                 <User className="w-4 h-4" />
-                <span className="text-muted-foreground">
-                  {user.user_metadata?.company_name || user.email}
-                </span>
+                <span className="text-muted-foreground">{user.companyName || user.email}</span>
               </div>
               {/* Admin quick links */}
-              {profile?.role === 'admin' ? (
+              {user?.role === 'admin' ? (
                 <div className="hidden md:flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -118,6 +127,19 @@ const Navigation = () => {
                     }}
                   >
                     Orders
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (location.pathname === '/admin/guest-drafts') {
+                        navigate('/admin/guest-drafts', { replace: true });
+                      } else {
+                        navigate('/admin/guest-drafts');
+                      }
+                    }}
+                  >
+                    Guest Drafts
                   </Button>
                 </div>
               ) : null}
@@ -208,13 +230,15 @@ const Navigation = () => {
                 >
                   Samples
                 </Link>
-                <Link
-                  to="/designers"
-                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/designers') ? 'bg-accent/60 text-accent-foreground' : ''}`}
-                  onClick={() => setOpen(false)}
-                >
-                  Designers
-                </Link>
+                {featureFlags.designers && (
+                  <Link
+                    to="/designers"
+                    className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/designers') ? 'bg-accent/60 text-accent-foreground' : ''}`}
+                    onClick={() => setOpen(false)}
+                  >
+                    Designers
+                  </Link>
+                )}
                 <Link
                   to="/case-studies"
                   className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/case-studies') ? 'bg-accent/60 text-accent-foreground' : ''}`}
@@ -222,6 +246,15 @@ const Navigation = () => {
                 >
                   Case Studies
                 </Link>
+                {featureFlags.findOrder && (
+                  <Link
+                    to="/find-order"
+                    className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/find-order') ? 'bg-accent/60 text-accent-foreground' : ''}`}
+                    onClick={() => setOpen(false)}
+                  >
+                    Find order
+                  </Link>
+                )}
               </div>
               <div className="my-3 h-px bg-border" />
               {user ? (
@@ -253,6 +286,19 @@ const Navigation = () => {
                         }}
                       >
                         Orders
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setOpen(false);
+                          if (location.pathname === '/admin/guest-drafts') {
+                            navigate('/admin/guest-drafts', { replace: true });
+                          } else {
+                            navigate('/admin/guest-drafts');
+                          }
+                        }}
+                      >
+                        Guest Drafts
                       </Button>
                     </div>
                   ) : null}

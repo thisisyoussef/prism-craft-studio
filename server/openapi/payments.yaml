@@ -1,0 +1,80 @@
+tags:
+  - name: Payments
+    description: Payment processing via Stripe checkout and invoices
+paths:
+  /api/payments/create-checkout:
+    post:
+      tags: [Payments]
+      summary: Create a Stripe Checkout session
+      description: Creates a Stripe Checkout session for a given order and payment phase.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId: { type: string }
+                phase:
+                  type: string
+                  enum: [full_payment, shipping_fee]
+            example:
+              orderId: 66de612b3f3cc9b4c7f5a9d2
+              phase: full_payment
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeCheckoutSession'
+              example:
+                id: cs_test_123
+                url: https://checkout.stripe.com/c/pay/cs_test_123
+  /api/payments/create-invoice:
+    post:
+      tags: [Payments]
+      summary: Create a Stripe invoice
+      description: Creates a Stripe invoice in send_invoice mode for a given order.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId: { type: string }
+            example:
+              orderId: 66de612b3f3cc9b4c7f5a9d2
+      responses:
+        '200':
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeInvoice'
+              example:
+                id: in_1Pabc123
+                invoiceUrl: https://pay.stripe.com/invoice/acct_123/invst_456
+  /api/webhooks/stripe:
+    post:
+      tags: [Payments]
+      summary: Stripe webhook endpoint
+      description: Raw body endpoint used by Stripe to post events.
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Acknowledged
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok

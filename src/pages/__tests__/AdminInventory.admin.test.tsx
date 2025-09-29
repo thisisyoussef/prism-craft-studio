@@ -1,3 +1,6 @@
+import React from 'react';
+import { vi } from 'vitest';
+import '@testing-library/jest-dom';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithAppProviders } from '@/test/test-utils';
 import { useAuthStore } from '@/lib/store';
@@ -8,7 +11,7 @@ vi.mock('@/lib/profile', () => ({
 
 describe('AdminInventory page (admin)', () => {
   it('renders inventory header and pagination', async () => {
-    useAuthStore.setState({ user: { id: 'admin-1' } as any, loading: false });
+    useAuthStore.setState({ user: { id: 'admin-1', role: 'admin' } as any, loading: false });
     const { default: AdminInventory } = await import('../AdminInventory');
     renderWithAppProviders(<AdminInventory />);
     await waitFor(() => {

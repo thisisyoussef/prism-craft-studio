@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { useProfile } from "@/lib/profile";
+import { useAuthStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +12,8 @@ import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { serverErrorMessage } from "@/lib/errors";
+import Navigation from "@/components/Navigation";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,27 +26,19 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface ProductRow {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  base_price: number | null;
-  image_url: string | null;
-  available_colors: string[] | null;
-  available_sizes: string[] | null;
-  customization_options: Record<string, any> | null;
-  created_at: string;
-  updated_at: string;
-}
+import { listProducts, updateProduct as apiUpdateProduct, deleteProduct as apiDeleteProduct, type ApiProduct } from "@/lib/services/productService";
+import { listByProductIds, type ApiVariant } from "@/lib/services/variantService";
+import api from "@/lib/api";
+
+type ProductRow = ApiProduct;
 
 export default function AdminInventory() {
   const navigate = useNavigate();
-  const { data: profile, isLoading: loadingProfile } = useProfile();
+  const { user } = useAuthStore();
   const qc = useQueryClient();
 
   // Simple guard: only admins can view
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = user?.role === "admin";
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | "all">("all");
@@ -53,50 +46,52 @@ export default function AdminInventory() {
   const pageSize = 10;
 
   const { data, isLoading, refetch, isFetching } = useQuery<{ rows: ProductRow[]; total: number; categories: string[] }>({
-    queryKey: ["admin-inventory", { page, pageSize }],
+    queryKey: ["admin-inventory"],
     queryFn: async () => {
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-
-      // Fetch page of products
-      const { data, error, count } = await supabase
-        .from("products")
-        .select("*", { count: "exact" })
-        .range(from, to)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch categories (simple distinct query)
-      const { data: cats, error: catErr } = await supabase
-        .from("products")
-        .select("category");
-      if (catErr) throw catErr;
-      const categories = Array.from(new Set((cats || []).map((c: any) => c.category).filter(Boolean)));
-
-      return { rows: (data as ProductRow[]) || [], total: count || 0, categories };
+      const products = await listProducts();
+      const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+      return { rows: products, total: products.length, categories };
     },
   });
 
+  // Pull variants to derive color chips per product
+  const { data: variants } = useQuery<ApiVariant[]>({
+    enabled: !!(data?.rows?.length),
+    queryKey: ["admin-inventory-variants", (data?.rows || []).map(p => p.id).join(",")],
+    queryFn: async () => {
+      const ids = (data?.rows || []).map(p => p.id);
+      if (ids.length === 0) return [] as ApiVariant[];
+      return await listByProductIds(ids);
+    },
+  });
+
+  // Map productId -> color chips from active variants
+  const colorsByProduct = useMemo(() => {
+    const map = new Map<string, { name: string; hex: string }[]>();
+    const list = variants || [];
+    for (const v of list) {
+      if (v.active === false) continue;
+      const name = (v.colorName || '').trim();
+      if (!name) continue;
+      const hex = v.colorHex || '#ffffff';
+      const arr = map.get(v.productId) || [];
+      if (!arr.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        arr.push({ name, hex });
+        map.set(v.productId, arr);
+      }
+    }
+    return map;
+  }, [variants]);
+
   // Note: active flag currently lives in customization_options.active in this schema
 
-  // Mutation to delete a product (variants cascade via FK)
+  // Mutation to delete a product
   const deleteProduct = useMutation({
     mutationFn: async (productId: string) => {
-      console.log('Attempting to delete product:', productId);
-      const { error, data } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", productId);
-      console.log('Delete result:', { error, data });
-      if (error) {
-        console.error('Delete error details:', error);
-        throw error;
-      }
-      return data;
+      await apiDeleteProduct(productId);
     },
     onMutate: async (productId: string) => {
-      const key = ["admin-inventory", { page, pageSize }];
+      const key = ["admin-inventory"];
       await qc.cancelQueries({ queryKey: key as any });
       const prev = qc.getQueryData(key as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
       if (prev) {
@@ -112,7 +107,7 @@ export default function AdminInventory() {
       toast({ title: "Deleted", description: "Product removed." });
     },
     onError: (err: any, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["admin-inventory", { page, pageSize }] as any, ctx.prev);
+      if (ctx?.prev) qc.setQueryData(["admin-inventory"] as any, ctx.prev);
       toast({ title: "Delete failed", description: serverErrorMessage(err, 'Unable to delete product'), variant: "destructive" as any });
     }
   });
@@ -127,20 +122,15 @@ export default function AdminInventory() {
     });
   }, [data?.rows, query, category]);
 
-  if (loadingProfile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-muted-foreground">You do not have access to this page.</p>
-        <Button variant="default" onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
-      </div>
+      <>
+        <Navigation />
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-muted-foreground">You do not have access to this page.</p>
+          <Button variant="default" onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
+        </div>
+      </>
     );
   }
 
@@ -150,21 +140,17 @@ export default function AdminInventory() {
 
   // Mutation to update product fields (name, description, etc.)
   const updateProduct = useMutation({
-    mutationFn: async (args: { productId: string; updates: Record<string, any> }) => {
+    mutationFn: async (args: { productId: string; updates: Partial<ProductRow> }) => {
       const { productId, updates } = args;
-      const { error } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", productId);
-      if (error) throw error;
+      await apiUpdateProduct(productId, updates as any);
     },
     onMutate: async ({ productId, updates }) => {
       const key = ["admin-inventory", { page, pageSize }];
       await qc.cancelQueries({ queryKey: key as any });
-      const prev = qc.getQueryData(key as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
+      const prev = qc.getQueryData(["admin-inventory"] as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
       if (prev) {
-        const rows = prev.rows.map(r => r.id === productId ? { ...r, ...updates } : r);
-        qc.setQueryData(key as any, { ...prev, rows });
+        const rows = prev.rows.map(r => r.id === productId ? { ...r, ...updates } as ProductRow : r);
+        qc.setQueryData(["admin-inventory"] as any, { ...prev, rows });
       }
       return { prev } as const;
     },
@@ -174,7 +160,7 @@ export default function AdminInventory() {
       toast({ title: "Saved", description: "Product updated successfully." });
     },
     onError: (err: any, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["admin-inventory", { page, pageSize }] as any, ctx.prev);
+      if (ctx?.prev) qc.setQueryData(["admin-inventory"] as any, ctx.prev);
       toast({ title: "Save failed", description: serverErrorMessage(err, 'Unable to save changes'), variant: "destructive" as any });
     }
   });
@@ -183,64 +169,64 @@ export default function AdminInventory() {
   const updateOptions = useMutation({
     mutationFn: async (args: { productId: string; patch: Record<string, any> }) => {
       const { productId, patch } = args;
-      // Validate incoming patch to avoid bad writes
       const OptionPatchSchema = z.object({
         sku: z.string().trim().min(1, 'SKU is required').max(64).optional(),
         stock: z.number().int().min(0).optional(),
         active: z.boolean().optional(),
       })
       const parsed = OptionPatchSchema.safeParse(patch)
-      if (!parsed.success) {
-        throw new Error(parsed.error.issues.map(i => i.message).join('\n'))
+      if (!parsed.success) throw new Error(parsed.error.issues.map(i => i.message).join('\n'))
+
+      // Handle active as top-level and sku/stock under specifications
+      if (typeof patch.active === 'boolean') {
+        await apiUpdateProduct(productId, { active: patch.active } as any);
       }
-      // Fetch existing options to merge on server
-      const { data: existing, error: fetchErr } = await supabase
-        .from("products")
-        .select("customization_options")
-        .eq("id", productId)
-        .maybeSingle();
-      if (fetchErr) throw fetchErr;
-      const baseOpts = ((): Record<string, any> => {
-        const raw = (existing as any)?.customization_options;
-        if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, any>;
-        return {};
-      })();
-      const next = { ...baseOpts, ...patch };
-      const { error: updErr } = await supabase
-        .from("products")
-        .update({ customization_options: next })
-        .eq("id", productId);
-      if (updErr) throw updErr;
+      const specPatch: Record<string, any> = {};
+      if (typeof patch.sku !== 'undefined') specPatch.sku = patch.sku;
+      if (typeof patch.stock !== 'undefined') specPatch.stock = patch.stock;
+      if (Object.keys(specPatch).length) {
+        // Merge by fetching current product from cache
+        const cache = qc.getQueryData(["admin-inventory"]) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
+        const existing = cache?.rows.find(r => r.id === productId);
+        const baseSpecs = (existing?.specifications && typeof existing.specifications === 'object') ? existing.specifications : {};
+        await apiUpdateProduct(productId, { specifications: { ...baseSpecs, ...specPatch } } as any);
+      }
     },
     onMutate: async ({ productId, patch }) => {
-      const key = ["admin-inventory", { page, pageSize }];
+      const key = ["admin-inventory"];
       await qc.cancelQueries({ queryKey: key as any });
       const prev = qc.getQueryData(key as any) as { rows: ProductRow[]; total: number; categories: string[] } | undefined;
       if (prev) {
         const rows = prev.rows.map(r => {
           if (r.id !== productId) return r;
-          const baseOpts = (r.customization_options && typeof r.customization_options === 'object') ? r.customization_options : {};
-          return { ...r, customization_options: { ...baseOpts, ...patch } } as ProductRow;
+          const baseSpecs = (r.specifications && typeof r.specifications === 'object') ? r.specifications : {};
+          const next: ProductRow = {
+            ...r,
+            specifications: { ...baseSpecs, ...patch },
+            active: typeof patch.active === 'boolean' ? patch.active : r.active,
+          } as ProductRow;
+          return next;
         });
         qc.setQueryData(key as any, { ...prev, rows });
       }
       return { prev } as const;
     },
     onSuccess: () => {
-      // Ensure freshness and also refresh related caches
       qc.invalidateQueries({ queryKey: ["admin-inventory"] as any });
       qc.invalidateQueries({ queryKey: ["catalog-products"] as any });
       toast({ title: "Saved", description: "Inventory updated successfully." });
     },
     onError: (err: any, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["admin-inventory", { page, pageSize }] as any, ctx.prev);
+      if (ctx?.prev) qc.setQueryData(["admin-inventory"] as any, ctx.prev);
       toast({ title: "Save failed", description: serverErrorMessage(err, 'Unable to save changes'), variant: "destructive" as any });
     }
   });
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-6 py-10">
+    <>
+      <Navigation />
+      <div className="min-h-screen">
+        <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold">Inventory</h1>
@@ -311,10 +297,10 @@ export default function AdminInventory() {
                 </TableRow>
               ) : (
                 filtered.map((p) => {
-                  const opts = (p.customization_options as Record<string, any>) || {};
-                  const sku: string = typeof opts.sku === 'string' ? opts.sku : '';
-                  const stock: number = typeof opts.stock === 'number' ? opts.stock : 0;
-                  const active: boolean = typeof opts.active === 'boolean' ? opts.active : true;
+                  const specs = (p.specifications as Record<string, any>) || {};
+                  const sku: string = typeof specs.sku === 'string' ? specs.sku : '';
+                  const stock: number = typeof specs.stock === 'number' ? specs.stock : 0;
+                  const active: boolean = typeof p.active === 'boolean' ? p.active : true;
                   return (
                   <TableRow key={p.id}>
                     <TableCell>
@@ -337,20 +323,20 @@ export default function AdminInventory() {
                       <div className="text-xs text-muted-foreground line-clamp-1">{p.description}</div>
                     </TableCell>
                     <TableCell>{p.category || "-"}</TableCell>
-                    <TableCell>${Number(p.base_price || 0).toFixed(2)}</TableCell>
+                    <TableCell>${Number(p.basePrice || 0).toFixed(2)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[220px]">
-                        {(p.available_colors || []).slice(0, 5).map((c) => (
-                          <Badge key={c} variant="secondary">{c}</Badge>
+                        {(colorsByProduct.get(p.id) || []).slice(0, 5).map((c) => (
+                          <Badge key={`${p.id}-${c.name}`} variant="secondary">{c.name}</Badge>
                         ))}
-                        {((p.available_colors || []).length || 0) > 5 ? (
-                          <Badge variant="outline">+{(p.available_colors || []).length - 5}</Badge>
+                        {(((colorsByProduct.get(p.id) || []).length) || 0) > 5 ? (
+                          <Badge variant="outline">+{(colorsByProduct.get(p.id)!.length - 5)}</Badge>
                         ) : null}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {(p.available_sizes || []).map((s) => (
+                        {(p.sizes || []).map((s) => (
                           <Badge key={s} variant="outline">{s}</Badge>
                         ))}
                       </div>
@@ -442,7 +428,8 @@ export default function AdminInventory() {
             <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

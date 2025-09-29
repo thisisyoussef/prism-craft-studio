@@ -1,0 +1,42 @@
+tags:
+  - name: Email
+    description: Email sending endpoints
+paths:
+  /api/emails/send:
+    post:
+      tags: [Email]
+      summary: Send an email
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, subject]
+              properties:
+                to: { type: string, description: Recipient email address }
+                subject: { type: string }
+                text: { type: string }
+                html: { type: string }
+            example:
+              to: buyer@example.com
+              subject: Your order is ready
+              text: Your order ORD-1725663000000 is now ready for pickup.
+              html: <p>Your order <strong>ORD-1725663000000</strong> is now ready for pickup.</p>
+      responses:
+        '200':
+          description: Email accepted for delivery
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  id: { type: string, nullable: true }
+              example:
+                ok: true
+                id: "msg_01J5Z1ABCDEF"
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }

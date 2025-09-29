@@ -9,8 +9,14 @@ import { companyRouter } from './companyRoutes';
 import { pricingRouter } from './pricingRoutes';
 import { fileRouter } from './fileRoutes';
 import { stripeRoutes } from './stripeRoutes';
+import authRouter from './authRoutes';
+import { variantRouter } from './variantRoutes';
+import { guestDraftRouter } from './guestDraftRoutes';
+import { guestAuthRouter } from './guestAuthRoutes';
+import { guestOrderRouter } from './guestOrderRoutes';
 
 export function registerRoutes(app: Application) {
+	app.use('/api/auth', authRouter);
 	app.use('/api/products', productRouter);
 	app.use('/api/emails', emailRouter);
 	app.use('/api/orders', orderRouter);
@@ -21,4 +27,8 @@ export function registerRoutes(app: Application) {
 	app.use('/api/pricing', pricingRouter);
 	app.use('/api/files', fileRouter);
 	app.use('/api', stripeRoutes);
+	app.use('/api', variantRouter);
+	app.use('/api/guest-drafts', guestDraftRouter);
+	app.use('/api/guest/auth', guestAuthRouter);
+	app.use('/api/guest/orders', guestOrderRouter);
 }

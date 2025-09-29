@@ -22,6 +22,22 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Build OpenAPI spec
+        run: npm run openapi:build
+
+      - name: Validate OpenAPI spec
+        run: npm run openapi:validate
+
+      - name: Generate OpenAPI TS types
+        run: npm run openapi:types
+
+      - name: Upload OpenAPI artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.json
+
       - name: Run tests with coverage
         run: npm run test
 

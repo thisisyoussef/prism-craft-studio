@@ -6,16 +6,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuthStore, useOrderStore, usePricingStore, useGuestStore } from '@/lib/store'
+import type { CreateOrderPayload } from '@/lib/types/order'
 import { Calculator, ArrowLeft, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 import AuthDialog from './AuthDialog'
 import GuestDetailsDialog from './GuestDetailsDialog'
-import { supabase } from '@/lib/supabase'
+import { getProduct } from '@/lib/services/productService'
 import { customizerSchema, type CustomizerInput } from '@/lib/validation'
 import { zodErrorMessage } from '@/lib/errors'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { sendGuestDraftEmail } from '../lib/email'
+import { requestGuestLink } from '@/lib/services/guestOrderService'
 import { useNavigate } from 'react-router-dom'
 
 interface CustomizerStep2Props {
@@ -44,14 +46,8 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
     if (!selectedProduct) return
     (async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from('products')
-          .select('name, base_price')
-          .eq('id', selectedProduct)
-          .maybeSingle()
-        if (!error && data) {
-          setProductInfo({ name: data.name, basePrice: data.base_price ?? 0 })
-        }
+        const p = await getProduct(selectedProduct)
+        if (p) setProductInfo({ name: p.name, basePrice: p.basePrice ?? 0 })
       } catch {}
     })()
   }, [selectedProduct])
@@ -60,11 +56,9 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
   useEffect(() => {
     const hasAny = Object.values(sizesQty).some(v => (v || 0) > 0)
     if (!hasAny) {
-      // Start with a simple distribution: 10 each for S-XL = 50 minimum
+      // Ensure minimum 50 pieces: 10 per common size
       const initial: Record<string, number> = {}
-      commonSizes.forEach(size => {
-        initial[size] = size === 'S' || size === 'M' || size === 'L' || size === 'XL' ? 10 : 5
-      })
+      commonSizes.forEach(size => { initial[size] = 10 })
       setSizesQty(initial)
       updateQuantity(50) // Total from above
     }
@@ -197,45 +191,34 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
         return
       }
 
-      const orderPayload = {
+      const mappedPrints = prints.map(p => ({
+        id: p.id,
+        location: p.location as any,
+        method: p.method as any,
+        size: p.size,
+        position: p.position,
+        rotationDeg: p.rotationDeg,
+        customText: p.customText,
+        notes: p.notes,
+      }))
+
+      const orderPayload: CreateOrderPayload = {
         product_id: selectedProduct,
         product_name: productInfo?.name || 'Product',
         product_category: 'apparel',
         quantity: totalQuantity,
-        unit_price: unitPrice,
-        total_amount: price,
+        unit_price: Number(unitPrice.toFixed(2)),
+        total_amount: Number(price.toFixed(2)),
         customization: {
           baseColor: 'default',
-          printLocations: prints.map(p => ({
-            id: p.id,
-            location: p.location as any,
-            method: p.method as any,
-            colors: p.colors || [],
-            colorCount: p.colorCount || 1,
-            size: p.size,
-            position: p.position,
-            rotationDeg: p.rotationDeg,
-            customText: p.customText,
-            notes: p.notes,
-          })),
           method: prints[0]?.method || 'screen-print',
-          specialInstructions: notes,
+          printLocations: mappedPrints as any,
+          specialInstructions: notes || undefined,
         },
         colors: [],
         sizes: sizesQty,
-        print_locations: prints.map(p => ({
-          id: p.id,
-          location: p.location as any,
-          method: p.method as any,
-          colors: p.colors || [],
-          colorCount: p.colorCount || 1,
-          size: p.size,
-          position: p.position,
-          rotationDeg: p.rotationDeg,
-          customText: p.customText,
-          notes: p.notes,
-        })),
-        customer_notes: notes,
+        print_locations: mappedPrints as any,
+        customer_notes: notes || undefined,
       }
 
       const created = await addOrder(orderPayload)
@@ -277,8 +260,6 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
             id: p.id,
             location: p.location,
             method: p.method,
-            colors: p.colors,
-            colorCount: p.colorCount,
             size: p.size,
             position: p.position,
             rotationDeg: p.rotationDeg,
@@ -296,11 +277,17 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
         },
       }
 
-      const { error } = await supabase.from('guest_drafts').insert(payload)
-      if (error) throw error
-
       await sendGuestDraftEmail('quote', info?.email, payload)
-      toast.success('Quote request saved. We\'ll email you shortly.')
+      try {
+        if (info?.email) {
+          const res = await requestGuestLink(info.email)
+          if (res?.devLink) sessionStorage.setItem('pcs_dev_magic_link', res.devLink)
+        }
+      } catch (e) {
+        console.warn('[guest] failed to send magic link', e)
+      }
+      toast.success("Check your email for a secure access link.")
+      if (info?.email) navigate(`/check-email?email=${encodeURIComponent(info.email)}`)
     } catch (e: unknown) {
       console.error(e)
       const message = e instanceof Error ? e.message : 'Failed to save quote request'
@@ -513,11 +500,11 @@ const CustomizerStep2 = ({ onBack, selectedProduct }: CustomizerStep2Props) => {
                         size="lg"
                         disabled={!isFormValid}
                       >
-                        Get quote as guest
+                        Continue as Guest
                       </Button>
                     }
-                    title="Get your quote"
-                    description="We'll email you a detailed quote. No account required."
+                    title="Continue as Guest"
+                    description="We’ll email you a secure link to view your quote and follow up. No account needed."
                     onSubmitted={handleGuestOrder}
                   />
                   <AuthDialog 
