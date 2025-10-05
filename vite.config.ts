@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rollupOptions: {
-      external: ["html-to-image", "axios"],
+      // Do not externalize browser deps; bundle them so bare specifiers resolve in production.
     },
   },
   plugins: [
