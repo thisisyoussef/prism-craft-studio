@@ -8,7 +8,6 @@ export type RedirectRule =
 export const redirectRules: RedirectRule[] = [
   { type: 'exact', from: '/catalogue', to: '/catalog' },
   { type: 'exact', from: '/price', to: '/pricing' },
-  { type: 'exact', from: '/sample', to: '/samples' },
   { type: 'exact', from: '/design', to: '/designers' },
   { type: 'exact', from: '/quote', to: '/customize' },
   { type: 'prefix', fromPrefix: '/case-study', to: '/case-studies' },

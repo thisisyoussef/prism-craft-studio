@@ -7,6 +7,20 @@ import type {
   OrderTimelineEvent,
 } from '@/lib/types/order';
 
+export type EtaResponse = {
+  stages: Record<'in_production' | 'shipping', {
+    status: 'pending' | 'in_progress' | 'done';
+    expectedStartAt?: string;
+    expectedEndAt?: string;
+    remainingBusinessDays?: number;
+  }>;
+  overall: {
+    deliveryWindow: { start: string; end: string };
+    isLate: boolean;
+    daysLate: number;
+  };
+};
+
 function mapStatusToNode(status?: OrderStatus): 'submitted' | 'paid' | 'in_production' | 'shipping' | 'delivered' {
   return (status as any) || 'submitted';
 }
@@ -32,7 +46,7 @@ function nodeOrderToApp(o: any): Order {
     order_number: o.orderNumber,
     user_id: o.customerId || '',
     company_id: undefined,
-    product_id: undefined,
+    product_id: o.productId ? String(o.productId) : undefined,
     product_name: o.productName,
     product_category: o.productCategory,
     quantity: Number(o.quantity || 0),
@@ -77,6 +91,7 @@ function appCreateToNode(p: CreateOrderPayload) {
   return {
     productCategory: p.product_category,
     productName: p.product_name,
+    productId: p.product_id,
     quantity: p.quantity,
     unitPrice: p.unit_price,
     totalAmount: p.total_amount,
@@ -205,6 +220,11 @@ export class OrderService {
       trigger_source: (ev.triggerSource || 'api') as any,
       created_at: String(ev.createdAt || ''),
     }));
+  }
+
+  static async getOrderEta(orderId: string): Promise<EtaResponse> {
+    const { data } = await api.get(`/orders/${orderId}/eta`);
+    return data as EtaResponse;
   }
 
   static async createCheckout(orderId: string, phase: string): Promise<{ url: string }> {

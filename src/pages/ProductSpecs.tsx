@@ -210,9 +210,8 @@ export default function ProductSpecs() {
                   <div>Minimum order: <span className="font-medium">{moq}</span> pieces</div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-1 gap-3 pt-2">
                   <Button variant="hero" className="w-full" onClick={() => navigate("/customize")}>Customize</Button>
-                  <Button variant="hero-secondary" className="w-full" onClick={() => navigate("/samples")}>See & feel samples</Button>
                 </div>
               </div>
 

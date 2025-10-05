@@ -12,7 +12,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Catalog from "./pages/Catalog";
 import Pricing from "./pages/Pricing";
-import Samples from "./pages/Samples";
 import Designers from "./pages/Designers";
 import Customize from "./pages/Customize";
 import Dashboard from "./pages/Dashboard";
@@ -52,7 +51,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/pricing" element={<Pricing />} />
-            <Route path="/samples" element={<Samples />} />
+            {/* Samples route removed */}
             {featureFlags.designers && (
               <Route path="/designers" element={<Designers />} />
             )}

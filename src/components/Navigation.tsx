@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store";
 import AuthDialog from "./AuthDialog";
-import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDollarSign, FlaskConical, BookOpen } from "lucide-react";
+import { LogOut, User, Settings as SettingsIcon, Menu, X, Home, Package, BadgeDollarSign, BookOpen } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useProfile } from "@/lib/profile";
 import ModeToggle from "@/components/ModeToggle";
@@ -61,12 +61,7 @@ const Navigation = () => {
           >
             Pricing
           </Link>
-          <Link 
-            to="/samples" 
-            className={`transition-colors duration-200 ${isActive('/samples') ? 'text-primary' : 'text-foreground hover:text-muted-foreground'}`}
-          >
-            Samples
-          </Link>
+          {/* Samples link removed */}
           {featureFlags.designers && (
             <Link 
               to="/designers" 
@@ -223,13 +218,7 @@ const Navigation = () => {
                 >
                   Pricing
                 </Link>
-                <Link
-                  to="/samples"
-                  className={`px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground ${isActive('/samples') ? 'bg-accent/60 text-accent-foreground' : ''}`}
-                  onClick={() => setOpen(false)}
-                >
-                  Samples
-                </Link>
+                {/* Samples link removed in mobile menu */}
                 {featureFlags.designers && (
                   <Link
                     to="/designers"
@@ -358,7 +347,7 @@ const Navigation = () => {
     <div className="h-20 md:h-24" aria-hidden="true" />
     {/* Bottom mobile navigation */}
     <nav className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-5">
+      <div className="grid grid-cols-4">
         <Link to="/" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
           <Home className="h-6 w-6" />
           <span>Home</span>
@@ -370,10 +359,6 @@ const Navigation = () => {
         <Link to="/pricing" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/pricing') ? 'text-primary' : 'text-muted-foreground'}`}>
           <BadgeDollarSign className="h-6 w-6" />
           <span>Pricing</span>
-        </Link>
-        <Link to="/samples" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/samples') ? 'text-primary' : 'text-muted-foreground'}`}>
-          <FlaskConical className="h-6 w-6" />
-          <span>Samples</span>
         </Link>
         <Link to="/case-studies" className={`flex flex-col items-center justify-center py-2.5 min-h-11 gap-1 text-xs ${isActive('/case-studies') ? 'text-primary' : 'text-muted-foreground'}`}>
           <BookOpen className="h-6 w-6" />

@@ -102,7 +102,8 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
     })),
   [productsData, coverByProduct]);
 
-  const effectiveSelected = selectedSamplesProp ?? selectedSamples;
+  const effectiveSelectedFromItems = useMemo(() => (itemsProp && itemsProp.length ? itemsProp.map(it => it.productId) : undefined), [itemsProp]);
+  const effectiveSelected = selectedSamplesProp ?? effectiveSelectedFromItems ?? selectedSamples;
 
   const toggleSample = (sampleId: string) => {
     // Disable internal toggling when external selection is provided
@@ -410,7 +411,6 @@ const SampleOrderFlow = ({ mode = 'dialog', selectedSamples: selectedSamplesProp
               )}
             </div>
             <div className="bg-coral/10 border border-coral/20 rounded-lg p-3 mt-4">
-              <p className="text-xs text-foreground"> Sample Credits: Cost applied toward bulk orders placed within 30 days</p>
               <p className="text-xs text-foreground">💡 <strong>Sample Credits:</strong> Cost applied toward bulk orders placed within 30 days</p>
             </div>
           </>

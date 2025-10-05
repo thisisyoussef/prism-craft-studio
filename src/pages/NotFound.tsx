@@ -4,7 +4,7 @@ import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/lib/store";
-import { ArrowLeft, BadgeDollarSign, FlaskConical, Home, LayoutDashboard, Package, PencilLine, Search } from "lucide-react";
+import { ArrowLeft, BadgeDollarSign, Home, LayoutDashboard, Package, PencilLine, Search } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { listProducts, type ApiProduct } from "@/lib/services/productService";
@@ -68,7 +68,6 @@ const NotFound = () => {
     const routes: { label: string; to: string }[] = [
       { label: 'Catalog', to: '/catalog' },
       { label: 'Pricing', to: '/pricing' },
-      { label: 'Samples', to: '/samples' },
       { label: 'Customize', to: '/customize' },
       { label: 'Design help', to: '/designers' },
       { label: 'Case studies', to: '/case-studies' },
@@ -213,9 +212,7 @@ const NotFound = () => {
             <Button asChild variant="outline" size="lg">
               <Link to="/pricing?ref=404" onClick={() => Analytics.ctaClick('view_pricing', '/pricing')}><BadgeDollarSign className="h-4 w-4" /> View pricing</Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link to="/samples?ref=404" onClick={() => Analytics.ctaClick('see_samples', '/samples')}><FlaskConical className="h-4 w-4" /> See samples</Link>
-            </Button>
+            {/* Samples CTA removed */}
             <Button asChild variant="outline" size="lg">
               <Link to="/designers?ref=404" onClick={() => Analytics.ctaClick('design_help', '/designers')}>Get design help</Link>
             </Button>

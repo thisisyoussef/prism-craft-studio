@@ -3,7 +3,6 @@ import { FileText, Play, Shirt, Heart, Clock } from "lucide-react";
 import heroImage from "@/assets/hero-manufacturing.jpg";
 import cardImage from "@/assets/card_img.jpeg";
 import ProductCustomizer from "./ProductCustomizer";
-import SampleOrderFlow from "./SampleOrderFlow";
 
 const HeroSection = () => {
   return (
@@ -21,7 +20,6 @@ const HeroSection = () => {
             
             <div className="flex flex-col sm:flex-row gap-4">
               <ProductCustomizer />
-              <SampleOrderFlow />
             </div>
             
             <div className="mt-4">

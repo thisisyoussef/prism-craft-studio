@@ -4,7 +4,6 @@ import { BusinessReviews } from "@/components/BusinessReviews";
 import FeaturesSection from "@/components/FeaturesSection";
 import ProductCatalog from "@/components/ProductCatalog";
 import PricingCalculator from "@/components/PricingCalculator";
-import SampleOrdering from "@/components/SampleOrdering";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import SEO from "@/components/SEO";
 
@@ -34,9 +33,7 @@ const Index = () => {
       <ScrollReveal variant="fade-up" delayMs={160}>
         <PricingCalculator />
       </ScrollReveal>
-      <ScrollReveal variant="fade-up" delayMs={200}>
-        <SampleOrdering />
-      </ScrollReveal>
+      {/* Samples section removed */}
 
       <div className="relative z-10 px-6 max-w-6xl mx-auto">
         <ScrollReveal variant="fade-up" delayMs={240}>

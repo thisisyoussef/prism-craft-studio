@@ -231,14 +231,7 @@ const PricingCalculator = () => {
                 Customize
               </Button>
               
-              <Button 
-                variant="hero-secondary" 
-                size="lg" 
-                className="w-full"
-                onClick={() => navigate('/samples')}
-              >
-                Get samples first
-              </Button>
+              {/* Samples CTA removed */}
             </div>
 
             <div className="text-center mt-4 space-y-2">

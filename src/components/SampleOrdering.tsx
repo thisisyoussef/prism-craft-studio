@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, Clock, CheckCircle } from "lucide-react";
@@ -16,6 +16,7 @@ type VariantRow = ApiVariant;
 const SampleOrdering = () => {
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
   const [itemsById, setItemsById] = useState<Record<string, { type: 'designed'|'blank'; variantId?: string; colorName?: string; designUrl?: string; unitPrice: number }>>({});
+  const [flowType, setFlowType] = useState<'custom' | 'blank'>('custom');
 
   const { data: productsData, isLoading: productsLoading } = useQuery<ProductRow[]>({
     queryKey: ['sample-products'],
@@ -87,11 +88,11 @@ const SampleOrdering = () => {
           return {
             ...old,
             [sampleId]: {
-              type: 'designed',
+              type: flowType === 'custom' ? 'designed' : 'blank',
               variantId: first?.id,
               colorName: first?.colorName,
               designUrl: undefined,
-              unitPrice: 75,
+              unitPrice: flowType === 'custom' ? 75 : 50,
             },
           };
         });
@@ -99,6 +100,22 @@ const SampleOrdering = () => {
       }
     });
   };
+
+  // Keep item types/prices in sync when flow changes
+  useEffect(() => {
+    setItemsById(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        next[id] = {
+          ...next[id],
+          type: flowType === 'custom' ? 'designed' : 'blank',
+          unitPrice: flowType === 'custom' ? 75 : 50,
+          designUrl: flowType === 'blank' ? undefined : next[id]?.designUrl,
+        };
+      });
+      return next;
+    });
+  }, [flowType]);
 
   const selectedItems = useMemo(() => selectedSamples.map((id) => {
     const sample = sampleProducts.find(p => p.id === id);
@@ -119,13 +136,35 @@ const SampleOrdering = () => {
   return (
     <section id="samples" className="py-16 bg-card-secondary">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-medium tracking-tight text-foreground mb-4">
-            See and feel quality
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Try before you order. 2–4 day delivery. Sample credit applies to your order.
-          </p>
+        <div className="text-center mb-8">
+          <h2 className="text-4xl font-medium tracking-tight text-foreground mb-3">Samples</h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">Try before you order. 2–4 day delivery. Credit applied to bulk orders.</p>
+        </div>
+
+        {/* Flow selector */}
+        <div className="grid md:grid-cols-2 gap-4 mb-12">
+          <button
+            type="button"
+            onClick={() => setFlowType('custom')}
+            className={`text-left p-5 rounded-xl border transition-colors ${flowType === 'custom' ? 'border-primary ring-2 ring-primary/20 bg-background' : 'border-primary/10 hover:border-primary/30 bg-background'}`}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-medium text-foreground">Custom sample</h3>
+              <span className="text-sm font-medium text-foreground">$75</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">Upload your design and choose a color. No full customizer needed.</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFlowType('blank')}
+            className={`text-left p-5 rounded-xl border transition-colors ${flowType === 'blank' ? 'border-primary ring-2 ring-primary/20 bg-background' : 'border-primary/10 hover:border-primary/30 bg-background'}`}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-medium text-foreground">Blank sample</h3>
+              <span className="text-sm font-medium text-foreground">$50</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">Just the garment. Pick a color. Simple and fast.</p>
+          </button>
         </div>
 
         {/* Sample Benefits */}
@@ -155,9 +194,7 @@ const SampleOrdering = () => {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Sample Selection */}
           <div className="lg:col-span-2">
-            <h3 className="text-xl font-medium text-foreground mb-6">
-              Choose your samples
-            </h3>
+            <h3 className="text-xl font-medium text-foreground mb-6">{flowType === 'custom' ? 'Choose custom samples' : 'Choose blank samples'}</h3>
             
             <div className="grid sm:grid-cols-2 gap-6">
               {productsLoading && (
@@ -212,12 +249,8 @@ const SampleOrdering = () => {
                   </p>
                   
                   <div className="flex items-center justify-between">
-                    <div className="text-lg font-medium text-foreground">
-                      ${sample.price}
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {sample.leadTime}
-                    </Badge>
+                    <div className="text-lg font-medium text-foreground">${flowType === 'custom' ? 75 : 50}</div>
+                    <Badge variant="outline" className="text-xs">{sample.leadTime}</Badge>
                   </div>
                   
                   {selectedSamples.includes(sample.id) && (
@@ -229,27 +262,8 @@ const SampleOrdering = () => {
                       <div className="grid grid-cols-1 gap-3">
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-xs text-muted-foreground mb-1">Type</label>
-                            <select
-                              className="w-full border rounded px-2 py-1 text-sm"
-                              value={itemsById[sample.id]?.type || 'designed'}
-                              onChange={(e) => {
-                                const val = e.target.value as 'designed'|'blank';
-                                setItemsById(prev => ({
-                                  ...prev,
-                                  [sample.id]: {
-                                    ...(prev[sample.id] || { unitPrice: 75, type: 'designed' }),
-                                    type: val,
-                                    unitPrice: val === 'designed' ? 75 : 50,
-                                    // Clear design if switching to blank
-                                    designUrl: val === 'blank' ? undefined : prev[sample.id]?.designUrl,
-                                  },
-                                }));
-                              }}
-                            >
-                              <option value="designed">Designed ($75)</option>
-                              <option value="blank">Blank ($50)</option>
-                            </select>
+                            <label className="block text-xs text-muted-foreground mb-1">Flow</label>
+                            <div className="text-sm text-foreground">{flowType === 'custom' ? 'Custom (designed)' : 'Blank'}</div>
                           </div>
                           <div>
                             <label className="block text-xs text-muted-foreground mb-1">Color</label>
@@ -275,7 +289,7 @@ const SampleOrdering = () => {
                             </select>
                           </div>
                         </div>
-                        {itemsById[sample.id]?.type === 'designed' && (
+                        {flowType === 'custom' && (
                           <div>
                             <label className="block text-xs text-muted-foreground mb-1">Design (optional)</label>
                             <div className="flex items-center gap-2">
@@ -308,7 +322,7 @@ const SampleOrdering = () => {
                             </div>
                           </div>
                         )}
-                        <div className="text-xs text-muted-foreground">Unit price: ${itemsById[sample.id]?.unitPrice ?? 75}</div>
+                        <div className="text-xs text-muted-foreground">Unit price: ${flowType === 'custom' ? 75 : 50}</div>
                       </div>
                     </div>
                   )}
@@ -324,22 +338,7 @@ const SampleOrdering = () => {
               {selectedSamples.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">Choose samples to get started</p>
               ) : (
-                <>
-                  <SampleOrderFlow mode="inline" items={selectedItems} hideSelection />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-3"
-                    onClick={() => {
-                      toast({
-                        title: "Custom sample",
-                        description: "Custom sample requests are coming soon.",
-                      });
-                    }}
-                  >
-                    Request a custom sample
-                  </Button>
-                </>
+                <SampleOrderFlow mode="inline" items={selectedItems} hideSelection />
               )}
             </div>
           </div>

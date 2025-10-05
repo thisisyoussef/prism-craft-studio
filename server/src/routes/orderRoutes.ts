@@ -8,6 +8,9 @@ import { GuestMagicLink } from '../models/GuestMagicLink';
 import { sendEmail } from '../services/emailService';
 import crypto from 'crypto';
 import { emitToRoom } from '../services/realtimeService';
+import { getGlobalLeadTimes } from '../models/Settings';
+import { Product } from '../models/Product';
+import { computeExpectedScheduleFromSnapshot, computeEtaForOrder } from '../services/etaService';
 
 export const orderRouter = Router();
 
@@ -38,7 +41,8 @@ orderRouter.post('/', requireAuth, async (req: Request, res: Response, next: Nex
 			customerEmail: req.user!.email,
 			customerName: `${req.user!.firstName} ${req.user!.lastName}`,
 			companyName: body.companyName,
-			shippingAddress: body.shippingAddress
+			shippingAddress: body.shippingAddress,
+			productId: body.productId
 		});
 
 		// Create single payment record (product amount only)
@@ -49,12 +53,93 @@ orderRouter.post('/', requireAuth, async (req: Request, res: Response, next: Nex
 			status: 'pending'
 		});
 
+		// Snapshot lead times (effective product override -> global defaults)
+		try {
+			const globals = await getGlobalLeadTimes();
+			let prodOverride: any = undefined;
+			if (body.productId) {
+				const p = await Product.findById(body.productId).lean();
+				prodOverride = (p as any)?.leadTimes;
+			}
+			const snapshot = {
+				production: prodOverride?.production || globals.production,
+				shipping: prodOverride?.shipping || globals.shipping,
+				businessCalendar: globals.businessCalendar,
+				capturedAt: new Date(),
+			};
+			const { schedule, deliveryWindow } = computeExpectedScheduleFromSnapshot(snapshot as any, order.createdAt, order.paidAt || undefined);
+			order.leadTimeSnapshot = snapshot as any;
+			order.expectedSchedule = schedule as any;
+			order.estimatedDeliveryWindow = deliveryWindow as any;
+			await order.save();
+		} catch (e) {
+			const oid = (order as any)?._id ? String((order as any)._id) : String((order as any)?.id || '');
+			console.warn('Failed to snapshot lead times for order', oid, e);
+		}
+
 		res.status(201).json(serializeOrder(order));
 	} catch (err) { next(err); }
 });
 
+// Get orders (customers see only their orders, admins see all)
+orderRouter.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const query = req.user!.role === 'admin' ? {} : { customerId: req.user!.id };
+		const orders = await Order.find(query).sort({ createdAt: -1 }).lean();
+		res.json(orders.map(serializeOrder));
+	} catch (err) { next(err); }
+});
+
+// Get order by ID (customers can only see their orders)
+orderRouter.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const query = req.user!.role === 'admin' 
+			? { _id: req.params.id }
+			: { _id: req.params.id, customerId: req.user!.id };
+		const order = await Order.findOne(query).lean();
+		if (!order) return res.status(404).json({ error: 'Not Found' });
+		res.json(serializeOrder(order));
+	} catch (err) { next(err); }
+});
+
+// ETA: returns per-stage ETA and overall delivery window
+orderRouter.get('/:id/eta', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const query = req.user!.role === 'admin' 
+            ? { _id: req.params.id }
+            : { _id: req.params.id, customerId: req.user!.id };
+        const order = await Order.findOne(query).lean();
+        if (!order) return res.status(404).json({ error: 'Not Found' });
+
+        let snapshot = (order as any).leadTimeSnapshot;
+        if (!snapshot) {
+            const globals = await getGlobalLeadTimes();
+            let prodOverride: any = undefined;
+            if ((order as any).productId) {
+                const p = await Product.findById((order as any).productId).lean();
+                prodOverride = (p as any)?.leadTimes;
+            }
+            snapshot = {
+                production: prodOverride?.production || globals.production,
+                shipping: prodOverride?.shipping || globals.shipping,
+                businessCalendar: globals.businessCalendar,
+                capturedAt: new Date(),
+            } as any;
+        }
+
+        const eta = computeEtaForOrder({
+            status: (order as any).status,
+            createdAt: (order as any).createdAt,
+            paidAt: (order as any).paidAt,
+            snapshot,
+            existingSchedule: (order as any).expectedSchedule,
+        });
+        res.json(eta);
+    } catch (err) { next(err); }
+});
+
 // Admin: Resend guest access magic link
-orderRouter.post('/:id/guest/resend-link', requireAuth, requireAdmin, async (req, res, next) => {
+orderRouter.post('/:id/guest/resend-link', requireAuth, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const order = await Order.findById(req.params.id).lean();
         if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -79,27 +164,6 @@ orderRouter.post('/:id/guest/resend-link', requireAuth, requireAdmin, async (req
             res.status(500).json({ error: 'Failed to send email' });
         }
     } catch (err) { next(err); }
-});
-
-// Get orders (customers see only their orders, admins see all)
-orderRouter.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-	try {
-		const query = req.user!.role === 'admin' ? {} : { customerId: req.user!.id };
-		const orders = await Order.find(query).sort({ createdAt: -1 }).lean();
-		res.json(orders.map(serializeOrder));
-	} catch (err) { next(err); }
-});
-
-// Get order by ID (customers can only see their orders)
-orderRouter.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-	try {
-		const query = req.user!.role === 'admin' 
-			? { _id: req.params.id }
-			: { _id: req.params.id, customerId: req.user!.id };
-		const order = await Order.findOne(query).lean();
-		if (!order) return res.status(404).json({ error: 'Not Found' });
-		res.json(serializeOrder(order));
-	} catch (err) { next(err); }
 });
 
 // Admin: Update order status

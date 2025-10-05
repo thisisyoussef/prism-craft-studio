@@ -7,7 +7,7 @@ describe('Index page', () => {
     renderWithAppProviders(<Index />);
     expect(screen.getByText('ProductCatalog')).toBeInTheDocument();
     expect(screen.getByText('PricingCalculator')).toBeInTheDocument();
-    expect(screen.getByText('SampleOrdering')).toBeInTheDocument();
+    // Sample section removed from homepage
   });
 });
 

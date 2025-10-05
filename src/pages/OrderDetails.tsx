@@ -8,7 +8,7 @@ import { uploadFile } from '@/lib/services/fileService'
 import toast from 'react-hot-toast'
 import { serverErrorMessage } from '@/lib/errors'
 import { ScrollReveal, ScrollStagger } from '@/components/ScrollReveal'
-import { OrderService } from '@/lib/services/orderServiceNode'
+import { OrderService, type EtaResponse } from '@/lib/services/orderServiceNode'
 import { Helmet } from 'react-helmet-async'
 import { sendOrderUpdateEmail } from '@/lib/email'
 
@@ -31,6 +31,7 @@ const OrderDetails = () => {
   const [actionMessage, setActionMessage] = useState('')
   const [actionBusy, setActionBusy] = useState(false)
   const [invoiceBusy, setInvoiceBusy] = useState(false)
+  const [eta, setEta] = useState<EtaResponse | null>(null)
   const SUPPORT_EMAIL = (import.meta as any).env?.VITE_SUPPORT_EMAIL || (import.meta as any).env?.VITE_RESEND_EMAIL || ''
 
   const totals = useMemo(() => {
@@ -275,6 +276,11 @@ const OrderDetails = () => {
         const ord = await fetchOrder(id)
         if (!ord) throw new Error('Order not found')
         setOrder(ord)
+        // Fetch ETA for this order (customer/admin)
+        try {
+          const e = await OrderService.getOrderEta(id)
+          setEta(e)
+        } catch (_e) { /* ignore */ }
 
         // Optional: fetch payments from Node (admin-only endpoint may return empty)
         try { await fetchOrderPayments(id) } catch {}
@@ -571,6 +577,27 @@ const OrderDetails = () => {
                     </li>
                   )}
                 </ol>
+                {eta ? (
+                  <div className="mt-3 text-sm text-muted-foreground">
+                    {(() => {
+                      const s = order?.status
+                      const stage = (s === 'shipping') ? eta.stages.shipping : eta.stages.in_production
+                      const label = (s === 'shipping') ? 'Shipping' : 'Production'
+                      const remain = typeof stage.remainingBusinessDays === 'number' ? `${stage.remainingBusinessDays} business day${stage.remainingBusinessDays === 1 ? '' : 's'} remaining` : null
+                      const end = stage.expectedEndAt ? new Date(stage.expectedEndAt).toLocaleDateString() : null
+                      const windowStart = eta.overall.deliveryWindow?.start ? new Date(eta.overall.deliveryWindow.start).toLocaleDateString() : null
+                      const windowEnd = eta.overall.deliveryWindow?.end ? new Date(eta.overall.deliveryWindow.end).toLocaleDateString() : null
+                      return (
+                        <div className="space-y-1">
+                          <div><span className="text-foreground">{label} ETA:</span> {remain || '—'}{end ? ` • Expected end ${end}` : ''}</div>
+                          {windowStart && windowEnd ? (
+                            <div>Overall delivery window: {windowStart} – {windowEnd}{eta.overall.isLate ? ' • Delayed' : ''}</div>
+                          ) : null}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                ) : null}
               </Card>
             </ScrollReveal>
 
@@ -617,7 +644,13 @@ const OrderDetails = () => {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground mb-1">Estimated delivery</div>
-                        <div className="text-muted-foreground">{order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : '—'}</div>
+                        <div className="text-muted-foreground">
+                          {order.estimated_delivery
+                            ? new Date(order.estimated_delivery).toLocaleDateString()
+                            : (eta?.overall?.deliveryWindow
+                                ? `${new Date(eta.overall.deliveryWindow.start).toLocaleDateString()} – ${new Date(eta.overall.deliveryWindow.end).toLocaleDateString()}`
+                                : '—')}
+                        </div>
                       </div>
                     </div>
                   </div>

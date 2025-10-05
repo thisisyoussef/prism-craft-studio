@@ -59,7 +59,7 @@ const SiteFooter = () => {
               <li><Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Home</Link></li>
               <li><Link to="/catalog" className="text-muted-foreground hover:text-foreground transition-colors">Catalog</Link></li>
               <li><Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
-              <li><Link to="/samples" className="text-muted-foreground hover:text-foreground transition-colors">Samples</Link></li>
+              {/* Samples link removed */}
               <li><Link to="/designers" className="text-muted-foreground hover:text-foreground transition-colors">Designers</Link></li>
               <li><Link to="/case-studies" className="text-muted-foreground hover:text-foreground transition-colors">Case Studies</Link></li>
             </ul>

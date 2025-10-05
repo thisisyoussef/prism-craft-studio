@@ -160,7 +160,6 @@ vi.mock('@/components/BusinessReviews', () => ({ BusinessReviews: () => null }))
 vi.mock('@/components/FeaturesSection', () => ({ default: () => null }));
 vi.mock('@/components/ProductCatalog', () => ({ default: () => 'ProductCatalog' }));
 vi.mock('@/components/PricingCalculator', () => ({ default: () => 'PricingCalculator' }));
-vi.mock('@/components/SampleOrdering', () => ({ default: () => 'SampleOrdering' }));
 vi.mock('@/components/ScrollToTop', () => ({ default: () => null }));
 vi.mock('@/components/ui/toaster', () => ({ Toaster: () => null }));
 vi.mock('@/components/ui/sonner', () => ({ Toaster: () => null }));
