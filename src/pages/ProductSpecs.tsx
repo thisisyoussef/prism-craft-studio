@@ -307,6 +307,5 @@ export default function ProductSpecs() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
