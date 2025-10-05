@@ -13,6 +13,16 @@ leadTimeRouter.get('/defaults', async (_req: Request, res: Response, next: NextF
   } catch (err) { next(err); }
 });
 
+// GET per-product override (raw), admin only
+leadTimeRouter.get('/products/:id/override', requireAuth, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const p = await Product.findById(req.params.id).lean();
+    if (!p) return res.status(404).json({ error: 'Product not found' });
+    const override = (p as any).leadTimes || null;
+    res.json({ override });
+  } catch (err) { next(err); }
+});
+
 // PUT global defaults (admin)
 leadTimeRouter.put('/defaults', requireAuth, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {

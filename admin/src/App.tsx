@@ -7,6 +7,7 @@ import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
+import LeadTimes from './pages/LeadTimes';
 import Layout from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -79,6 +80,18 @@ export default function App() {
               <Layout>
                 <ErrorBoundary>
                   <ProductDetail />
+                </ErrorBoundary>
+              </Layout>
+            </Protected>
+          }
+        />
+        <Route
+          path="/settings/lead-times"
+          element={
+            <Protected>
+              <Layout>
+                <ErrorBoundary>
+                  <LeadTimes />
                 </ErrorBoundary>
               </Layout>
             </Protected>

@@ -195,13 +195,16 @@ export default function ProductDetail() {
 
       {/* Product Details */}
       {tab === 'details' && (
-        <div className="bg-white border rounded p-6">
-          <ProductForm 
-            product={product} 
-            categories={categoriesQ.data || []}
-            onUpdate={(data) => updateProduct.mutate(data)}
-            isUpdating={updateProduct.isPending}
-          />
+        <div className="space-y-4">
+          <div className="bg-white border rounded p-6">
+            <ProductForm 
+              product={product} 
+              categories={categoriesQ.data || []}
+              onUpdate={(data) => updateProduct.mutate(data)}
+              isUpdating={updateProduct.isPending}
+            />
+          </div>
+          <ProductLeadTimesCard productId={id!} />
         </div>
       )}
 
@@ -410,6 +413,142 @@ export default function ProductDetail() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProductLeadTimesCard({ productId }: { productId: string }) {
+  const qc = useQueryClient();
+  const effectiveQ = useQuery({
+    queryKey: ['lead-times','products', productId, 'effective'],
+    queryFn: async () => {
+      const res = await api.get(`/lead-times/products/${productId}/effective`);
+      return res.data as { production: { minDays: number; maxDays: number }; shipping: { minDays: number; maxDays: number }; businessCalendar: { timezone: string; workingDays: string[] } };
+    },
+  });
+  const overrideQ = useQuery({
+    queryKey: ['lead-times','products', productId, 'override'],
+    queryFn: async () => {
+      const res = await api.get(`/lead-times/products/${productId}/override`);
+      return (res.data?.override || null) as null | { production?: { minDays: number; maxDays: number }; shipping?: { minDays: number; maxDays: number } };
+    },
+  });
+
+  const [useGlobal, setUseGlobal] = useState(true);
+  const [prodMin, setProdMin] = useState('');
+  const [prodMax, setProdMax] = useState('');
+  const [shipMin, setShipMin] = useState('');
+  const [shipMax, setShipMax] = useState('');
+
+  React.useEffect(() => {
+    const ov = overrideQ.data;
+    if (overrideQ.isSuccess) {
+      const hasOverride = !!ov && (ov.production || ov.shipping);
+      setUseGlobal(!hasOverride);
+      setProdMin(ov?.production ? String(ov.production.minDays) : '');
+      setProdMax(ov?.production ? String(ov.production.maxDays) : '');
+      setShipMin(ov?.shipping ? String(ov.shipping.minDays) : '');
+      setShipMax(ov?.shipping ? String(ov.shipping.maxDays) : '');
+    }
+  }, [overrideQ.isSuccess, overrideQ.data]);
+
+  const saveOverride = useMutation({
+    mutationFn: async () => {
+      if (useGlobal) {
+        await api.put(`/lead-times/products/${productId}`, { useGlobal: true });
+        return;
+      }
+      const production = (prodMin !== '' || prodMax !== '') ? { minDays: Math.max(0, parseInt(prodMin) || 0), maxDays: Math.max(0, parseInt(prodMax) || 0) } : null;
+      const shipping = (shipMin !== '' || shipMax !== '') ? { minDays: Math.max(0, parseInt(shipMin) || 0), maxDays: Math.max(0, parseInt(shipMax) || 0) } : null;
+      // If both are null, clear override
+      if (!production && !shipping) {
+        await api.put(`/lead-times/products/${productId}`, { useGlobal: true });
+        return;
+      }
+      const payload: any = {};
+      if (production) payload.production = production;
+      else payload.production = null; // Explicitly unset if left blank
+      if (shipping) payload.shipping = shipping;
+      else payload.shipping = null;
+      await api.put(`/lead-times/products/${productId}`, payload);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['lead-times','products', productId, 'effective'] });
+      await qc.invalidateQueries({ queryKey: ['lead-times','products', productId, 'override'] });
+    }
+  });
+
+  const effective = effectiveQ.data;
+  const overallMin = effective ? (effective.production.minDays + effective.shipping.minDays) : undefined;
+  const overallMax = effective ? (effective.production.maxDays + effective.shipping.maxDays) : undefined;
+
+  return (
+    <div className="bg-white border rounded p-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-medium">Lead Times</h2>
+      </div>
+      {effective ? (
+        <div className="text-sm text-gray-700 mb-4">
+          <div>Effective production: {effective.production.minDays}–{effective.production.maxDays} business days</div>
+          <div>Effective shipping: {effective.shipping.minDays}–{effective.shipping.maxDays} business days</div>
+          <div className="text-gray-500">Overall: {overallMin}–{overallMax} business days</div>
+        </div>
+      ) : (
+        <div className="text-sm text-gray-500 mb-4">Loading effective lead times…</div>
+      )}
+
+      <div className="flex items-center gap-2 mb-3">
+        <input id="useGlobal" type="checkbox" checked={useGlobal} onChange={(e) => setUseGlobal(e.target.checked)} />
+        <label htmlFor="useGlobal" className="text-sm">Use global defaults</label>
+      </div>
+
+      {!useGlobal && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm font-medium mb-1">Production override</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" placeholder="Min" className="border rounded px-3 py-2" value={prodMin} onChange={(e) => setProdMin(e.target.value)} />
+              <input type="number" placeholder="Max" className="border rounded px-3 py-2" value={prodMax} onChange={(e) => setProdMax(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-medium mb-1">Shipping override</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" placeholder="Min" className="border rounded px-3 py-2" value={shipMin} onChange={(e) => setShipMin(e.target.value)} />
+              <input type="number" placeholder="Max" className="border rounded px-3 py-2" value={shipMax} onChange={(e) => setShipMax(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 mt-4">
+        <button
+          className="px-4 py-2 text-sm border rounded"
+          onClick={() => {
+            if (overrideQ.data) {
+              const ov = overrideQ.data;
+              const has = !!ov && (ov.production || ov.shipping);
+              setUseGlobal(!has);
+              setProdMin(ov?.production ? String(ov.production.minDays) : '');
+              setProdMax(ov?.production ? String(ov.production.maxDays) : '');
+              setShipMin(ov?.shipping ? String(ov.shipping.minDays) : '');
+              setShipMax(ov?.shipping ? String(ov.shipping.maxDays) : '');
+            } else {
+              setUseGlobal(true);
+              setProdMin(''); setProdMax(''); setShipMin(''); setShipMax('');
+            }
+          }}
+        >
+          Reset
+        </button>
+        <button
+          className="px-4 py-2 text-sm bg-brand-600 text-white rounded disabled:opacity-50"
+          disabled={saveOverride.isPending}
+          onClick={() => saveOverride.mutate()}
+        >
+          {saveOverride.isPending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
     </div>
   );
 }

@@ -46,9 +46,12 @@ export default function LeadTimes() {
   if (!draft) return null;
 
   function toggleDay(day: string) {
-    const curr = new Set(draft.businessCalendar.workingDays);
-    if (curr.has(day)) curr.delete(day); else curr.add(day);
-    setDraft({ ...draft, businessCalendar: { ...draft.businessCalendar, workingDays: Array.from(curr) } });
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const curr = new Set(prev.businessCalendar.workingDays);
+      if (curr.has(day)) curr.delete(day); else curr.add(day);
+      return { ...prev, businessCalendar: { ...prev.businessCalendar, workingDays: Array.from(curr) } };
+    });
   }
 
   return (
@@ -121,7 +124,10 @@ export default function LeadTimes() {
 
         <div className="flex justify-end gap-2 pt-2">
           <button
-            onClick={() => data && setDraft({ production: { ...data.production }, shipping: { ...data.shipping }, businessCalendar: { ...data.businessCalendar, workingDays: [...data.businessCalendar.workingDays] } })}
+            onClick={() => {
+              if (!data) return;
+              setDraft({ production: { ...data.production }, shipping: { ...data.shipping }, businessCalendar: { ...data.businessCalendar, workingDays: [...data.businessCalendar.workingDays] } });
+            }}
             className="px-4 py-2 text-sm border rounded"
           >
             Reset

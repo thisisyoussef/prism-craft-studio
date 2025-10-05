@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { listProducts, type ApiProduct } from "@/lib/services/productService";
 import { listByProductIds, type ApiVariant } from "@/lib/services/variantService";
+import { getEffectiveForProduct, type EffectiveLeadTimes } from "@/lib/services/leadTimeService";
 
 type ProductRow = ApiProduct;
 
@@ -35,6 +36,17 @@ const ProductCatalog = () => {
       console.log('ProductCatalog: Received products:', items);
       // Public endpoint only returns active; still filter defensively
       return (items || []).filter(p => p.active !== false);
+    },
+  });
+
+  // Fetch effective lead times for listed products
+  const { data: leadTimesByProduct } = useQuery<Record<string, EffectiveLeadTimes>>({
+    enabled: !!productsData && productsData.length > 0,
+    queryKey: ["catalog-lead-times", (productsData || []).map(p => p.id).join(",")],
+    queryFn: async () => {
+      const ids = (productsData || []).map(p => p.id);
+      const entries = await Promise.all(ids.map(async (id) => [id, await getEffectiveForProduct(id)] as const));
+      return Object.fromEntries(entries) as Record<string, EffectiveLeadTimes>;
     },
   });
 
@@ -221,6 +233,15 @@ const ProductCatalog = () => {
                     </Badge>
                   </div>
                 </div>
+                {(() => {
+                  const lt = leadTimesByProduct?.[product.id];
+                  if (!lt) return null;
+                  const overallMin = lt.production.minDays + lt.shipping.minDays;
+                  const overallMax = lt.production.maxDays + lt.shipping.maxDays;
+                  return (
+                    <div className="text-xs text-muted-foreground mb-4">Lead time: {overallMin}–{overallMax} business days</div>
+                  );
+                })()}
                 
                 <div className="space-y-3">
                   <Button 

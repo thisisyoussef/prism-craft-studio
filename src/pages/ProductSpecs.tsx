@@ -11,6 +11,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getEffectiveForProduct, type EffectiveLeadTimes } from "@/lib/services/leadTimeService";
 
 type ProductRow = ApiProduct;
 
@@ -39,6 +40,15 @@ export default function ProductSpecs() {
       const p = await apiGetProduct(productId!);
       if (!p || p.active === false) return null;
       return p;
+    },
+  });
+
+  const { data: leadTimes } = useQuery<EffectiveLeadTimes | null>({
+    enabled: !!productId,
+    queryKey: ["product-lead-times", productId],
+    queryFn: async () => {
+      try { return await getEffectiveForProduct(productId!); }
+      catch { return null; }
     },
   });
 
@@ -148,7 +158,6 @@ export default function ProductSpecs() {
               )}
             </div>
 
-            <div>
               <div className="space-y-2">
                 <h1 className="text-3xl font-medium tracking-tight text-foreground">
                   {loading ? <Skeleton className="h-8 w-64" /> : product?.name}
@@ -166,12 +175,20 @@ export default function ProductSpecs() {
                     <span className="text-sm text-muted-foreground font-normal">/piece</span>
                   </span>
                 </div>
+                {leadTimes ? (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {(() => {
+                      const overallMin = leadTimes.production.minDays + leadTimes.shipping.minDays;
+                      const overallMax = leadTimes.production.maxDays + leadTimes.shipping.maxDays;
+                      return <>Lead time: {overallMin}–{overallMax} business days</>;
+                    })()}
+                  </div>
+                ) : null}
               </div>
 
               <p className="text-muted-foreground mt-4">
                 {loading ? <Skeleton className="h-16 w-full" /> : (product?.description || "")}
               </p>
-
               <div className="mt-6 space-y-4">
                 <div>
                   <div className="text-sm text-muted-foreground mb-2">Colors</div>

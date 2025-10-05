@@ -10,17 +10,16 @@ import { getCanonicalUrl } from "@/lib/seo";
 
 const Dashboard = () => {
   const { user, loading } = useAuthStore();
-  const { orders, samples, fetchOrders, fetchSamples } = useOrderStore();
+  const { orders, fetchOrders } = useOrderStore();
 
   useEffect(() => {
     // Load user-specific data when authenticated
     if (user) {
       fetchOrders();
-      fetchSamples();
     }
-  }, [user, fetchOrders, fetchSamples]);
+  }, [user, fetchOrders]);
 
-  const hasAnyData = useMemo(() => (orders?.length || 0) + (samples?.length || 0) > 0, [orders?.length, samples?.length]);
+  const hasAnyData = useMemo(() => (orders?.length || 0) > 0, [orders?.length]);
 
   return (
     <div className="relative min-h-screen bg-background">
@@ -67,41 +66,12 @@ const Dashboard = () => {
               </Card>
             </ScrollReveal>
 
-            <ScrollReveal asChild variant="fade-up" delayMs={120}>
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-medium">Sample orders</h2>
-                  <Button variant="outline" size="sm" onClick={() => fetchSamples()} disabled={loading}>Refresh</Button>
-                </div>
-                {loading ? (
-                  <div className="text-sm text-muted-foreground">Loading...</div>
-                ) : (samples?.length || 0) === 0 ? (
-                  <div className="text-sm text-muted-foreground">No samples ordered yet.</div>
-                ) : (
-                <ScrollStagger intervalMs={50}>
-                  <div className="space-y-2">
-                    {samples.slice(0, 5).map((s: any) => (
-                      <div key={s.id} className="border rounded p-3 text-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="font-medium">Sample #{s.id.slice(0, 8)}</div>
-                          <div className="text-muted-foreground">${(Number(s.total_amount) || 0).toFixed(2)}</div>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                          <div className="uppercase">{s.status}</div>
-                          <div>{s.created_at ? new Date(s.created_at).toLocaleString() : '-'}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollStagger>
-                )}
-              </Card>
-            </ScrollReveal>
+            {/* Sample orders card removed */}
 
             {!hasAnyData ? (
               <ScrollReveal variant="fade-up" delayMs={160}>
                 <div className="md:col-span-2 text-sm text-muted-foreground">
-                  Start by browsing our catalog or ordering samples to see the quality.
+                  Start by browsing our catalog or customizing a product.
                 </div>
               </ScrollReveal>
             ) : null}
